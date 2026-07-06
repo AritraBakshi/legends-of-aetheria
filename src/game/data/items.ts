@@ -13,8 +13,8 @@ export const ITEMS: Item[] = [
   { id: 22, name: 'Paralysis Cure', type: 'status_cure', curesStatus: ['paralysis'], description: 'Cures paralysis.' },
   { id: 23, name: 'Awakening', type: 'status_cure', curesStatus: ['sleep'], description: 'Wakes up a sleeping creature.' },
   { id: 24, name: 'Full Cure', type: 'status_cure', curesStatus: ['burn', 'poison', 'paralysis', 'sleep', 'freeze', 'confusion'], description: 'Cures any status condition.' },
-  { id: 30, name: 'XP-Shot', type: 'xp_boost', xpAmount: 2000000, description: 'Grants 200 EXP to one creature.' },
-  { id: 31, name: 'XP-Shot Plus', type: 'xp_boost', xpAmount: 600, description: 'Grants 600 EXP to one creature.' },
+  { id: 30, name: 'XP-Shot', type: 'xp_boost', xpAmount: 1000, description: 'Grants 1000 EXP to one creature.' },
+  { id: 31, name: 'XP-Shot Plus', type: 'xp_boost', xpAmount: 20000, description: 'Grants 20000 EXP to one creature.' },
 ];
 
 export function getItemById(id: number): Item | undefined {
