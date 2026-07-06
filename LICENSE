@@ -1,0 +1,55 @@
+Copyright (c) 2026 Aritra Bakshi. All Rights Reserved.
+
+# Legends of Aetheria — License
+
+This repository, including but not limited to its source code, game design,
+narrative content, and all visual/audio assets (collectively, the "Work"),
+is the proprietary property of the copyright holder. The Work is made
+publicly viewable on GitHub for portfolio, reference, and collaboration
+discussion purposes only.
+
+## What you MAY do
+
+- View and read the source code and repository contents.
+- Fork or clone the repository for **personal, non-distributed, local
+  reference or learning purposes**.
+- Reference this project (e.g. in a portfolio review, code walkthrough, or
+  discussion) with proper attribution and a link back to this repository.
+- Open issues or submit pull requests for bug fixes or improvements,
+  understanding that any contributions become part of the Work under this
+  same license.
+
+## What you MAY NOT do, without prior written permission from the copyright holder
+
+- Copy, extract, redistribute, sublicense, sell, or otherwise reuse any
+  **art assets** (including but not limited to creature sprites, tilesets,
+  UI art, logos, and promotional images) found anywhere in this repository
+  or its deployed build, in this project or in any other project,
+  commercial or non-commercial.
+- Copy or redistribute **source code** for use in a published, deployed, or
+  distributed product (games, apps, tools, templates, etc.), whether
+  modified or unmodified.
+- Use the name "Legends of Aetheria," its characters, creature designs, or
+  associated branding for any derivative work, fan project, or commercial
+  product.
+- Claim authorship of any part of the Work.
+
+## Assets specifically
+
+All files under `public/assets/` (and any future asset directories) are
+**explicitly excluded from any permissive use** and are provided "as is"
+for the sole purpose of running this specific game as authored. See
+`ASSETS_LICENSE.md` for the dedicated asset license terms.
+
+## No warranty
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+FROM THE USE OF THE WORK.
+
+## Contact
+
+For licensing inquiries, permissions, or collaboration requests, please
+open an issue on this repository or contact the copyright holder directly.
