@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Legends of Aetheria"
+version = "1.0.0"
+id = "artifacts/legends-of-aetheria"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19191
+
+[services.development]
+run = "pnpm --filter @workspace/legends-of-aetheria run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/legends-of-aetheria", "run", "build" ]
+publicDir = "artifacts/legends-of-aetheria/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19191"
+BASE_PATH = "/"
