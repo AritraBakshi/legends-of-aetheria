@@ -144,6 +144,34 @@ export class BootScene extends Phaser.Scene {
       .fillRect(5,8,18,1).fillRect(5,11,20,1).fillRect(5,14,14,1);
     g.generateTexture('tile_sign', T, T);
 
+    // Boulder — chunky gray rock, fully self-contained (no background color
+    // showing through, so it sits cleanly on any ground tile beneath it)
+    g.clear()
+      .fillStyle(0x8a8580).fillRect(0, 0, T, T)
+      .fillStyle(0x6e6a66).fillRect(4, 22, 24, 8) // shadowed base
+      .fillStyle(0x9a958f).fillRect(9, 6, 8, 8).fillRect(17, 8, 7, 7) // facet highlights
+      .fillStyle(0x5a5652).fillRect(10, 20, 4, 3).fillRect(19, 18, 4, 3) // cracks/shadow
+      .fillStyle(0x76726c).fillRect(2, 12, 6, 10).fillRect(24, 12, 6, 10) // rounded sides
+      .fillStyle(0x6a8a4a, 0.5).fillRect(6, 26, 3, 2).fillRect(23, 27, 3, 2); // moss
+    g.generateTexture('tile_boulder', T, T);
+
+    // Rocky path — grayish, cracked earth-city ground
+    g.clear()
+      .fillStyle(0x9a9088).fillRect(0, 0, T, T)
+      .fillStyle(0x847a72).fillRect(2,2,4,2).fillRect(14,10,3,4).fillRect(24,20,4,2).fillRect(8,24,3,2)
+      .fillStyle(0xaca290).fillRect(10,6,3,2).fillRect(22,8,3,2).fillRect(4,18,3,2).fillRect(18,26,3,2)
+      .fillStyle(0x6e6660).fillRect(16,18,2,2).fillRect(28,4,2,2).fillRect(6,10,2,2); // crack flecks
+    g.generateTexture('tile_rockpath', T, T);
+
+    // Mud — dark wet earth patch with puddle sheen
+    g.clear()
+      .fillStyle(0x5a4630).fillRect(0, 0, T, T)
+      .fillStyle(0x4a3824).fillRect(0,0,T,T).fillRect(3,3,T-6,T-6) // uneven darker fill trick
+      .fillStyle(0x6a5238).fillRect(2,2,10,8).fillRect(18,16,10,8).fillRect(6,20,8,6)
+      .fillStyle(0x3a2c1c).fillRect(12,12,6,4).fillRect(22,4,6,4) // wet dark patches
+      .fillStyle(0x8a9aa0, 0.5).fillRect(14,14,3,1).fillRect(24,6,3,1); // puddle sheen
+    g.generateTexture('tile_mud', T, T);
+
     g.destroy();
   }
 
@@ -1387,6 +1415,34 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0x5a3018).fillRect(3, 25, 5, 3).fillRect(24, 25, 5, 3);
     });
     g.generateTexture('npc_trainer3', W, H);
+
+    // ── Earth Dungeon trainer — stony gray/tan digging gear, hard hat ─────────
+    g.clear();
+    drawBody(16, 26, 0x8a7a5a, 0x6a5a3a, 0xd8a878, 0x3a2c1c, 0x8a7a5a, () => {
+      // Hard hat
+      g.fillStyle(0xc0a040).fillRect(8, 6, 16, 6);
+      g.fillStyle(0xa08030).fillRect(8, 10, 16, 2);
+      // Rugged vest
+      g.fillStyle(0x6a5a3a).fillRect(9, 20, 6, 12).fillRect(17, 20, 6, 12);
+      // Gloves
+      g.fillStyle(0x5a4a2a).fillRect(2, 25, 5, 3).fillRect(25, 25, 5, 3);
+    });
+    g.generateTexture('npc_earth_trainer', W, H);
+
+    // ── Earth Dungeon Master — imposing dark stone-armored figure ─────────────
+    g.clear();
+    drawBody(16, 26, 0x5a5048, 0x38322c, 0xc0a888, 0x1a1a1a, 0x8a7040, () => {
+      // Heavy stone shoulder plates
+      g.fillStyle(0x726858).fillRect(3, 18, 9, 8).fillRect(20, 18, 9, 8);
+      // Crown/horned helm
+      g.fillStyle(0x2e2a24).fillRect(9, 4, 14, 8);
+      g.fillStyle(0x8a7040).fillRect(7, 6, 3, 6).fillRect(22, 6, 3, 6); // horns
+      // Glowing eyes
+      g.fillStyle(0xffb020).fillRect(11, 9, 3, 2).fillRect(18, 9, 3, 2);
+      // Cracked earth-toned cape
+      g.fillStyle(0x4a4038, 0.9).fillRect(6, 22, 20, 16);
+    });
+    g.generateTexture('npc_dungeon_master', W, H);
 
     // ── Mom / assistant — warm dress, apron ───────────────────────────────────
     g.clear();

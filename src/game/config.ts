@@ -8,6 +8,7 @@ import MenuScene from './scenes/MenuScene';
 import DialogueScene from './scenes/DialogueScene';
 import { ShopScene } from './scenes/ShopScene';
 import MoveReminderScene from './scenes/MoveReminderScene';
+import LocationBannerScene from './scenes/LocationBannerScene';
 
 const BASE_WIDTH = 640;
 const BASE_HEIGHT = 480;
@@ -24,7 +25,7 @@ export function createGame(parent: HTMLElement): Phaser.Game {
     roundPixels: true,
     scale: {
       mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      autoCenter: Phaser.Scale.NO_CENTER,
       width: BASE_WIDTH,
       height: BASE_HEIGHT,
       min: { width: 320, height: 240 },
@@ -44,6 +45,7 @@ export function createGame(parent: HTMLElement): Phaser.Game {
       DialogueScene,
       ShopScene,
       MoveReminderScene,
+      LocationBannerScene,
     ],
     input: {
       keyboard: true,

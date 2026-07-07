@@ -13,6 +13,7 @@ const TILE_TEXTURES: Record<number, string> = {
   [TILE.TREE]: 'tile_tree', [TILE.WATER]: 'tile_water', [TILE.WALL]: 'tile_wall',
   [TILE.FLOOR]: 'tile_floor', [TILE.ROOF]: 'tile_roof', [TILE.FLOWER]: 'tile_flower',
   [TILE.DOOR]: 'tile_door', [TILE.SIGN]: 'tile_sign',
+  [TILE.BOULDER]: 'tile_boulder', [TILE.ROCK_PATH]: 'tile_rockpath', [TILE.MUD]: 'tile_mud',
 };
 
 export class OverworldScene extends Phaser.Scene {
@@ -162,6 +163,8 @@ export class OverworldScene extends Phaser.Scene {
     if (npc.id === 'trainer1') return 'npc_trainer1';
     if (npc.id === 'trainer2') return 'npc_trainer2';
     if (npc.id === 'trainer3') return 'npc_trainer3';
+    if (npc.isDungeonMaster)  return 'npc_dungeon_master';
+    if (npc.dungeonId)        return 'npc_earth_trainer';
     if (npc.id === 'npc1')    return 'npc_villager_a';
     if (npc.id === 'npc2')    return 'npc_villager_b';
     if (npc.id === 'npc3')    return 'npc_villager_c';
@@ -236,14 +239,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private showLocationBanner() {
-    const W = this.scale.width;
-    const bg = this.add.graphics().setScrollFactor(0).setDepth(200);
-    bg.fillStyle(0x000000, 0.7).fillRoundedRect(W / 2 - 140, 50, 280, 40, 8);
-    bg.lineStyle(2, 0xffd700, 0.8).strokeRoundedRect(W / 2 - 140, 50, 280, 40, 8);
-    const txt = this.add.text(W / 2, 70, this.mapData.name, {
-      fontSize: '20px', fontFamily: 'monospace', color: '#ffd700',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
-    this.tweens.add({ targets: [bg, txt], alpha: 0, duration: 400, delay: 2500, onComplete: () => { bg.destroy(); txt.destroy(); } });
+    this.scene.launch('LocationBanner', { name: this.mapData.name });
   }
 
   private showMapTip() {
@@ -418,9 +414,36 @@ export class OverworldScene extends Phaser.Scene {
     return { creature: createActiveCreature(creatureId, level), data };
   }
 
+  // ─── DUNGEON STREAK SYSTEM ─────────────────────────────────────────────────────
+  /** Resets a dungeon's no-leave streak: clears the streak counter and every trainer's per-run beaten flag. */
+  private resetDungeonRun(dungeonId: string) {
+    gameState.counters[`dungeon_streak_${dungeonId}`] = 0;
+    for (const map of Object.values(MAPS)) {
+      for (const npc of map.npcs) {
+        if (npc.dungeonId === dungeonId) gameState.setFlag(`dungeon_run_beaten_${npc.id}`, false);
+      }
+    }
+  }
+
   private startTrainerBattle(npc: NPC) {
     if (this.isInBattle || !npc.trainerCreatures || npc.trainerCreatures.length === 0) return;
     if (gameState.party.length === 0) return;
+
+    // Dungeon Master gate: block the challenge until the streak requirement is met.
+    if (npc.isDungeonMaster && npc.dungeonId) {
+      const streak = gameState.getCounter(`dungeon_streak_${npc.dungeonId}`);
+      const required = npc.dungeonMasterRequires ?? 0;
+      if (streak < required) {
+        this.isInBattle = true;
+        this.showDialogue(
+          [`${npc.name}: You've beaten ${streak}/${required} of my trainers in a row.`, 'Come back once you\'ve defeated them all — without leaving!'],
+          npc.name,
+          () => { this.isInBattle = false; },
+        );
+        return;
+      }
+    }
+
     this.isInBattle = true;
 
     const rematchCount = gameState.getCounter(`rematch_${npc.id}`);
@@ -453,6 +476,18 @@ export class OverworldScene extends Phaser.Scene {
           onBattleEnd: (result: string) => {
             if (result === 'win') {
               gameState.incrementCounter(`rematch_${npc.id}`);
+              if (npc.dungeonId) {
+                if (npc.isDungeonMaster) {
+                  // Dungeon cleared — streak stands as proof; a fresh run starts next entry.
+                  gameState.setFlag(`dungeon_cleared_${npc.dungeonId}`, true);
+                } else if (!gameState.getFlag(`dungeon_run_beaten_${npc.id}`)) {
+                  gameState.setFlag(`dungeon_run_beaten_${npc.id}`, true);
+                  gameState.incrementCounter(`dungeon_streak_${npc.dungeonId}`);
+                }
+              }
+            } else if (npc.dungeonId && !npc.isDungeonMaster) {
+              // Losing breaks the streak — the room's trainers must be beaten again in order.
+              this.resetDungeonRun(npc.dungeonId);
             }
             this.isInBattle = false;
             this.cameras.main.fadeIn(400);
@@ -602,6 +637,10 @@ export class OverworldScene extends Phaser.Scene {
   private transitionMap(targetMap: string, targetX: number, targetY: number) {
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
+      // Entering a dungeon always starts a fresh no-leave streak.
+      const targetDungeonId = MAPS[targetMap]?.npcs.find(n => n.dungeonId)?.dungeonId;
+      if (targetDungeonId) this.resetDungeonRun(targetDungeonId);
+
       gameState.mapId = targetMap;
       gameState.playerX = targetX;
       gameState.playerY = targetY;

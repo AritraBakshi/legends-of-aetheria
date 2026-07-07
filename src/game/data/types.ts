@@ -106,6 +106,11 @@ export interface NPC {
   shopItems?: Array<{ id: number; price: number }>;
   triggersStarter?: boolean;
   repeatable?: boolean;
+  /** Dungeon streak system: trainers/master share a dungeonId to track a no-leave streak. */
+  dungeonId?: string;
+  isDungeonMaster?: boolean;
+  /** Number of dungeon trainers (with the same dungeonId) that must be beaten this run before the master can be challenged. */
+  dungeonMasterRequires?: number;
 }
 
 export interface MapExit {
