@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { gameState } from '../GameState';
 import type { ActiveCreature, Move } from '../data/types';
 import type { CreatureData } from '../data/types';
-import { getMoveById } from '../data/moves';
+import { getMoveById, FINAL_CRASHOUT_MOVE } from '../data/moves';
 import { getCreatureById } from '../data/creatures';
 import { getItemById } from '../data/items';
 import { TYPE_COLORS } from '../data/typeChart';
@@ -312,6 +312,22 @@ export class BattleScene extends Phaser.Scene {
     this.moveButtons = [];
 
     const creature = this.playerBC.creature;
+    const allOutOfPP = creature.moves.length > 0 && creature.moves.every(m => m.pp <= 0);
+
+    if (allOutOfPP) {
+      // No usable moves — offer the only remaining option so the battle can
+      // never soft-lock. Replaces the normal move grid entirely.
+      const btn = this.add.text(310, 48,
+        '💥 Final Crashout!  [Normal]  100 pwr — 50 HP recoil (no PP left!)', {
+        fontSize: '15px', fontFamily: 'monospace', color: '#ff6060',
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      btn.on('pointerover', () => { this.selectedMove = 0; this.highlightMoveBtn(); });
+      btn.on('pointerdown', () => this.executeFinalCrashout());
+      this.moveButtons.push(btn);
+      this.moveMenu.add(btn);
+      return;
+    }
+
     creature.moves.forEach((m, i) => {
       const move = getMoveById(m.moveId);
       if (!move) return;
@@ -587,6 +603,19 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
+  /** Last-resort action when every move is out of PP. Costs no PP itself. */
+  private executeFinalCrashout() {
+    if (!this.canInput) return;
+    this.canInput = false;
+    this.moveMenu.setVisible(false);
+    this.actionMenu.setVisible(false);
+
+    const playerName = this.getPlayerCreatureName();
+    this.showMessage(`${playerName} has no moves left and unleashes a Final Crashout!!`, () => {
+      this.applyMove(this.playerBC, this.enemyBC, FINAL_CRASHOUT_MOVE, false);
+    });
+  }
+
   private applyMove(attacker: BattleCreature, defender: BattleCreature, move: Move, isEnemy: boolean) {
     const attackerName = isEnemy ? this.config.wildCreatureData.name : this.getPlayerCreatureName();
     const defenderName = isEnemy ? this.getPlayerCreatureName() : this.config.wildCreatureData.name;
@@ -645,9 +674,27 @@ export class BattleScene extends Phaser.Scene {
           if (isEnemy) this.handlePlayerFaint();
           else this.handleEnemyFaint();
         });
-      } else {
-        this.nextTurn(!isEnemy);
+        return;
       }
+
+      const recoilAmt = move.effect?.type === 'recoil' ? (move.effect.recoilFlat ?? 0) : 0;
+      if (recoilAmt > 0) {
+        attacker.creature.currentHp = Math.max(0, attacker.creature.currentHp - recoilAmt);
+        this.updateHPBar(attacker.creature, !isEnemy);
+        this.showMessage(`${attackerName} is hit by the recoil! (-${recoilAmt} HP)`, () => {
+          if (isFainted(attacker.creature)) {
+            this.showMessage(`${attackerName} fainted from the recoil!`, () => {
+              if (isEnemy) this.handleEnemyFaint();
+              else this.handlePlayerFaint();
+            });
+          } else {
+            this.nextTurn(!isEnemy);
+          }
+        });
+        return;
+      }
+
+      this.nextTurn(!isEnemy);
     });
   }
 
@@ -692,7 +739,29 @@ export class BattleScene extends Phaser.Scene {
 
   private enemyTurn() {
     const moves = this.enemyBC.creature.moves.filter(m => m.pp > 0);
-    if (moves.length === 0) { this.showActionMenu(); return; }
+    if (moves.length === 0) {
+      // Same soft-lock fix as the player side: no moves left, still has to act.
+      const statusDmg = applyStatusDamage(this.enemyBC.creature);
+      const enemyName = this.config.wildCreatureData.name;
+      if (statusDmg > 0) {
+        this.updateHPBar(this.enemyBC.creature, false);
+        const status = this.enemyBC.creature.status;
+        this.showMessage(`${enemyName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
+          if (isFainted(this.enemyBC.creature)) {
+            this.showMessage(`${enemyName} fainted!`, () => this.handleEnemyFaint());
+          } else {
+            this.showMessage(`${enemyName} has no moves left and unleashes a Final Crashout!!`, () => {
+              this.applyMove(this.enemyBC, this.playerBC, FINAL_CRASHOUT_MOVE, true);
+            });
+          }
+        });
+      } else {
+        this.showMessage(`${enemyName} has no moves left and unleashes a Final Crashout!!`, () => {
+          this.applyMove(this.enemyBC, this.playerBC, FINAL_CRASHOUT_MOVE, true);
+        });
+      }
+      return;
+    }
 
     const moveSlot = moves[Math.floor(Math.random() * moves.length)];
     moveSlot.pp--;

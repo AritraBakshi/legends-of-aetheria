@@ -282,6 +282,11 @@ export const MAPS: Record<string, MapData> = {
         ],
       },
       {
+        id: 'guide', name: 'Guide', x: 16, y: 13, direction: 'left', repeatable: true,
+        isGuide: true,
+        dialogue: ['New to Aetheria? I can walk you through anything you\'re unsure about!'],
+      },
+      {
         id: 'pokecenter_sign', name: 'Sign', x: 18, y: 7, direction: 'down', repeatable: true,
         dialogue: [
           '🏥 POKÉMON CENTER',

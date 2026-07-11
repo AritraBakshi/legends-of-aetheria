@@ -13,6 +13,8 @@ export interface MoveEffect {
   chance?: number;
   healPercent?: number;
   priority?: number;
+  /** Flat HP damage dealt back to the user (used by recoil effects). */
+  recoilFlat?: number;
 }
 
 export interface Move {
@@ -103,6 +105,7 @@ export interface NPC {
   trainerCreatures?: Array<{ creatureId: number; level: number }>;
   isNurse?: boolean;
   isShop?: boolean;
+  isGuide?: boolean;
   shopItems?: Array<{ id: number; price: number }>;
   triggersStarter?: boolean;
   repeatable?: boolean;

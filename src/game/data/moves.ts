@@ -70,3 +70,22 @@ export const MOVES: Move[] = [
 export function getMoveById(id: number): Move | undefined {
   return MOVES.find(m => m.id === id);
 }
+
+/**
+ * Not a learnable move — never appears in MOVES, learnsets, or move-list UI.
+ * This is the last-resort action a creature can take when every one of its
+ * actual moves is out of PP, so a battle can never soft-lock. Equivalent to
+ * "Struggle" in the classic games: always available, always hits, and hurts
+ * the user on top of the damage it deals.
+ */
+export const FINAL_CRASHOUT_MOVE: Move = {
+  id: -1,
+  name: 'Final Crashout',
+  type: 'Normal',
+  category: 'Physical',
+  power: 100,
+  accuracy: 100,
+  pp: 1,
+  description: 'A desperate, all-or-nothing strike used only when no other move has PP left.',
+  effect: { type: 'recoil', target: 'self', recoilFlat: 50 },
+};

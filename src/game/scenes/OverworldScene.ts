@@ -155,6 +155,7 @@ export class OverworldScene extends Phaser.Scene {
   private getNPCTexture(npc: NPC): string {
     if (npc.isNurse)    return 'npc_nurse';
     if (npc.isShop)     return 'npc_shopkeeper';
+    if (npc.isGuide)    return 'npc_guide';
     if (npc.name === 'Sign' || npc.id.includes('sign')) return 'npc_sign';
     if (npc.id === 'move_reminder') return 'npc_move_reminder';
     if (npc.id === 'rowan')   return 'npc_rowan';
@@ -376,12 +377,15 @@ export class OverworldScene extends Phaser.Scene {
   // ─── TRAINER BATTLES ──────────────────────────────────────────────────────────
   /**
    * Returns true if a trainer spotted the player at their current position.
-   * Trainers are always re-challengeable (no beaten check here).
+   * Only fires for a trainer's FIRST encounter — once beaten, a trainer no
+   * longer auto-challenges via sight; the player must walk up and interact
+   * (Enter) to get a rematch confirmation prompt instead.
    */
   private checkTrainerSight(): boolean {
     for (const { npc } of this.npcObjects) {
       if (!npc.isTrainer) continue;
       if (this.isInBattle) continue;
+      if (gameState.getFlag(`beaten_${npc.id}`)) continue;
 
       const dx = gameState.playerX - npc.x;
       const dy = gameState.playerY - npc.y;
@@ -475,6 +479,7 @@ export class OverworldScene extends Phaser.Scene {
           trainerExtraCreatures: extra,
           onBattleEnd: (result: string) => {
             if (result === 'win') {
+              gameState.setFlag(`beaten_${npc.id}`, true);
               gameState.incrementCounter(`rematch_${npc.id}`);
               if (npc.dungeonId) {
                 if (npc.isDungeonMaster) {
@@ -551,6 +556,13 @@ export class OverworldScene extends Phaser.Scene {
   private talkToNPC(npc: NPC) {
     if (this.dialogueActive) return;
 
+    // Guide: open the help topic menu
+    if (npc.isGuide) {
+      this.dialogueActive = true;
+      this.scene.launch('Guide', { onClose: () => { this.dialogueActive = false; } });
+      return;
+    }
+
     // Nurse: heal
     if (npc.isNurse) {
       const hasInjured = gameState.party.some(c =>
@@ -577,10 +589,17 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Trainers — always rebattleable
+    // Trainers — first battle is immediate; rematches need an explicit confirm
     if (npc.isTrainer) {
       if (gameState.party.length === 0) {
         this.showDialogue(['Come back when you have a creature to battle with!'], npc.name);
+      } else if (gameState.getFlag(`beaten_${npc.id}`)) {
+        this.dialogueActive = true;
+        this.scene.launch('ConfirmPrompt', {
+          message: `Battle ${npc.name} again?`,
+          onYes: () => { this.dialogueActive = false; this.startTrainerBattle(npc); },
+          onNo:  () => { this.dialogueActive = false; },
+        });
       } else {
         this.startTrainerBattle(npc);
       }

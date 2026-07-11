@@ -19,8 +19,17 @@ export class MenuScene extends Phaser.Scene {
   private contentContainer!: Phaser.GameObjects.Container;
   private selectedPartyIndex = 0;
   private activeWheelHandler: ((...args: unknown[]) => void) | null = null;
-  private activeMaskGraphic: Phaser.GameObjects.Graphics | null = null;
-  private storageScrollY = 0;
+  private activeUpHandler: (() => void) | null = null;
+  private activeDownHandler: (() => void) | null = null;
+  /**
+   * Scroll lists use a dedicated camera scoped to the list's viewport for
+   * clipping (same technique as the Guide NPC's help screen), instead of
+   * rebuilding rows every scroll tick and painting a colour-matched
+   * rectangle over the overflow. These are torn down centrally on every
+   * tab switch — see switchTab().
+   */
+  private scrollCams: Phaser.Cameras.Scene2D.Camera[] = [];
+  private scrollLayers: Phaser.GameObjects.Container[] = [];
   // Party: null = list view, number = detail view for that index
   private partyDetailIndex: number | null = null;
   // Bag: null = item list, number = target picker for that item id
@@ -91,9 +100,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private switchTab(tab: MenuTab) {
-    // Clean up scroll listener and mask from previous tab
-    if (this.activeWheelHandler) { this.input.off('wheel', this.activeWheelHandler); this.activeWheelHandler = null; }
-    if (this.activeMaskGraphic)  { this.activeMaskGraphic.destroy(); this.activeMaskGraphic = null; }
+    this.teardownScrollArea();
 
     // Reset sub-navigation when leaving a tab
     if (tab !== 'party') this.partyDetailIndex  = null;
@@ -108,6 +115,82 @@ export class MenuScene extends Phaser.Scene {
       case 'storage': this.renderStorage(); break;
       case 'save':    this.renderSave();    break;
     }
+  }
+
+  /** Tears down the active scroll camera/layer and its input listeners, if any. */
+  private teardownScrollArea() {
+    if (this.activeWheelHandler) { this.input.off('wheel', this.activeWheelHandler); this.activeWheelHandler = null; }
+    if (this.activeUpHandler)    { this.input.keyboard?.off('keydown-UP', this.activeUpHandler); this.activeUpHandler = null; }
+    if (this.activeDownHandler)  { this.input.keyboard?.off('keydown-DOWN', this.activeDownHandler); this.activeDownHandler = null; }
+    this.scrollCams.forEach(cam => this.cameras.remove(cam));
+    this.scrollCams = [];
+    this.scrollLayers.forEach(layer => layer.destroy());
+    this.scrollLayers = [];
+  }
+
+  /**
+   * Sets up a smoothly-scrollable, properly clipped list area using a
+   * dedicated camera scoped to the list's viewport — the same technique
+   * used by the Guide NPC's help screen. This replaces the old approach of
+   * rebuilding every row on each scroll tick and painting a colour-matched
+   * rectangle over the overflow, which relied on that colour exactly
+   * matching the backdrop and rebuilt GameObjects on every wheel event.
+   *
+   * `listTop`/`listH` use the same local coordinate system already used
+   * throughout this file (the 0–512-wide content panel). Returns a
+   * container — add each row's content into it ONCE, positioned at
+   * `index * rowStep` (no manual scroll offset, no visibility filtering
+   * needed; the camera clips everything outside the view automatically).
+   */
+  private createScrollArea(
+    listTop: number, listH: number, totalContentH: number,
+    opts: { scrollbarX?: number; scrollbarW?: number; rowStep?: number } = {},
+  ): Phaser.GameObjects.Container {
+    const { scrollbarX = 500, scrollbarW = 8, rowStep = 32 } = opts;
+    const cc = this.contentContainer;
+    const viewX = cc.x, viewY = cc.y + listTop, viewW = 512, viewH = listH;
+
+    const rows = this.add.container(viewX, viewY);
+    this.scrollLayers.push(rows);
+
+    const cam = this.cameras.add(viewX, viewY, viewW, viewH);
+    cam.setScroll(viewX, viewY);
+    cam.ignore(this.container);
+    cam.ignore(cc);
+    this.cameras.main.ignore(rows);
+    this.scrollCams.push(cam);
+
+    const maxScroll = Math.max(0, totalContentH - listH);
+    if (maxScroll <= 0) return rows;
+    let scrollY = 0;
+
+    const trackBg = this.add.graphics();
+    trackBg.fillStyle(0x1a2a40).fillRoundedRect(scrollbarX, listTop, scrollbarW, listH, scrollbarW / 2);
+    cc.add(trackBg);
+    const thumbH = Math.max(16, (listH / totalContentH) * listH);
+    const thumb = this.add.graphics();
+    cc.add(thumb);
+
+    const applyScroll = () => {
+      rows.y = viewY - scrollY;
+      const p = scrollY / maxScroll;
+      thumb.clear().fillStyle(0x4080c0)
+        .fillRoundedRect(scrollbarX, listTop + p * (listH - thumbH), scrollbarW, thumbH, scrollbarW / 2);
+    };
+    applyScroll();
+
+    this.activeWheelHandler = (_p: unknown, _g: unknown, _dx: unknown, dy: unknown) => {
+      scrollY = Phaser.Math.Clamp(scrollY + (dy as number) * 0.5, 0, maxScroll);
+      applyScroll();
+    };
+    this.input.on('wheel', this.activeWheelHandler);
+
+    this.activeUpHandler = () => { scrollY = Phaser.Math.Clamp(scrollY - rowStep, 0, maxScroll); applyScroll(); };
+    this.activeDownHandler = () => { scrollY = Phaser.Math.Clamp(scrollY + rowStep, 0, maxScroll); applyScroll(); };
+    this.input.keyboard?.on('keydown-UP', this.activeUpHandler);
+    this.input.keyboard?.on('keydown-DOWN', this.activeDownHandler);
+
+    return rows;
   }
 
   private renderParty() {
@@ -172,68 +255,18 @@ export class MenuScene extends Phaser.Scene {
     const listTop = 34;
     const listH   = panelH - listTop - 16;
     const totalH  = gameState.party.length * SLOT_H;
-    const maxScroll = Math.max(0, totalH - listH);
-    // Blended cover colour: panel bg (0x0d1a2e) + content bg (0x0a1220 @ 0.5)
-    const COVER = 0x0b1627;
 
-    let partyScrollY = 0;
-
-    // Rows are added directly to contentContainer at absolute Y positions.
-    // Only rows whose top edge is within [listTop, listTop+listH] are created.
-    // A partial bottom row is created but hidden by the bottom cover.
-    const slotContainer = this.add.container(0, 0);
-    this.contentContainer.add(slotContainer);
-
-    const rebuildSlots = () => {
-      slotContainer.removeAll(true);
-      gameState.party.forEach((creature, i) => {
-        const rowY = listTop + i * SLOT_H + partyScrollY;
-        // Show if any part of the row is in the visible band
-        if (rowY + SLOT_H > listTop && rowY < listTop + listH) {
-          this.renderPartySlot(creature, i, rowY, slotContainer, rebuildSlots,
-            rowY >= listTop); // only add reorder buttons for fully-in-view rows
-        }
-      });
-    };
-    rebuildSlots();
-
-    // ── Bottom cover — hides overflow past list bottom ───────────────────────
-    const bottomCover = this.add.graphics();
-    bottomCover.fillStyle(COVER).fillRoundedRect(4, listTop + listH, 512, panelH - listTop - listH, 8);
-    this.contentContainer.add(bottomCover);
-
-    // ── Top cover — hides overflow past list top (same colour as header) ─────
-    const topCover = this.add.graphics();
-    topCover.fillStyle(COVER).fillRect(4, 0, 512, listTop);
-    this.contentContainer.add(topCover);
-
-    // ── Title on top of cover so it stays readable ───────────────────────────
+    // ── Title ─────────────────────────────────────────────────────────────────
     this.contentContainer.add(this.add.text(260, 10,
       `Your Creatures  (${gameState.party.length}/6)`, {
       fontSize: '15px', fontFamily: 'monospace', color: '#80d0ff',
     }).setOrigin(0.5));
 
-    // ── Scrollbar ─────────────────────────────────────────────────────────────
-    if (maxScroll > 0) {
-      const trackBg = this.add.graphics();
-      trackBg.fillStyle(0x1a2a40).fillRoundedRect(500, listTop, 8, listH, 4);
-      this.contentContainer.add(trackBg);
-      const thumbH = Math.max(16, (listH / totalH) * listH);
-      const thumb  = this.add.graphics();
-      this.contentContainer.add(thumb);
-      const updateThumb = () => {
-        const p = maxScroll > 0 ? (-partyScrollY) / maxScroll : 0;
-        thumb.clear().fillStyle(0x4080c0)
-          .fillRoundedRect(500, listTop + p * (listH - thumbH), 8, thumbH, 4);
-      };
-      updateThumb();
-      this.activeWheelHandler = (_p: unknown, _g: unknown, _dx: unknown, dy: unknown) => {
-        partyScrollY = Phaser.Math.Clamp(partyScrollY - (dy as number) * 0.8, -maxScroll, 0);
-        rebuildSlots();
-        updateThumb();
-      };
-      this.input.on('wheel', this.activeWheelHandler);
-    }
+    // ── Scrollable, clipped rows — built once, no visibility filtering needed ──
+    const slotContainer = this.createScrollArea(listTop, listH, totalH, { rowStep: SLOT_H });
+    gameState.party.forEach((creature, i) => {
+      this.renderPartySlot(creature, i, i * SLOT_H, slotContainer, () => {});
+    });
   }
 
   private renderPartySlot(
@@ -443,7 +476,6 @@ export class MenuScene extends Phaser.Scene {
   private renderBag() {
     const H = this.scale.height;
     const panelH = H - 220;
-    const COVER = 0x0b1627;
     const bg = this.add.graphics();
     bg.fillStyle(0x0a1220, 0.5).fillRoundedRect(4, 0, 512, panelH, 8);
     this.contentContainer.add(bg);
@@ -456,10 +488,8 @@ export class MenuScene extends Phaser.Scene {
       const listTop = 50;
       const listH = panelH - listTop - 30;
       const totalH = gameState.party.length * ROW_H;
-      const maxScroll = Math.max(0, totalH - listH);
-      let scrollY = 0;
 
-      // Header (always visible)
+      // Header (always visible, outside the scroll area)
       const backBtn = this.add.text(14, 10, '◀ Items', {
         fontSize: '13px', fontFamily: 'monospace', color: '#80d0ff',
         backgroundColor: '#0e1e3a', padding: { x: 6, y: 4 },
@@ -481,132 +511,91 @@ export class MenuScene extends Phaser.Scene {
 
       const showFeedback = (msg: string, col = '#40ff80') => {
         feedbackTxt.setText(msg).setColor(col);
-        this.time.delayedCall(1200, () => { this.bagPendingItemId = null; this.switchTab('bag'); });
-      };
-
-      // Scrollable party rows
-      const rowContainer = this.add.container(0, 0);
-      this.contentContainer.add(rowContainer);
-
-      const buildRows = () => {
-        rowContainer.removeAll(true);
-        gameState.party.forEach((creature, ci) => {
-          const data = getCreatureById(creature.dataId);
-          if (!data) return;
-          const rowY = listTop + ci * ROW_H + scrollY;
-          if (rowY + ROW_H <= listTop || rowY >= listTop + listH) return;
-
-          const hpRatio = creature.currentHp / creature.maxHp;
-          const hpColor = hpRatio > 0.5 ? '#30c030' : hpRatio > 0.2 ? '#f0c020' : '#e02020';
-
-          const rowBg = this.add.graphics();
-          rowBg.fillStyle(0x0e1e3a).fillRoundedRect(10, rowY, 498, ROW_H - 4, 5);
-          rowBg.lineStyle(1, 0x253550).strokeRoundedRect(10, rowY, 498, ROW_H - 4, 5);
-          rowContainer.add(rowBg);
-          rowContainer.add(this.add.image(36, rowY + 20, `creature_${creature.dataId}`).setDisplaySize(28, 28));
-          rowContainer.add(this.add.text(58, rowY + 5, `${data.name} Lv.${creature.level}`, {
-            fontSize: '13px', fontFamily: 'monospace', color: '#c0e0ff',
-          }));
-          rowContainer.add(this.add.text(200, rowY + 5, `${creature.currentHp}/${creature.maxHp} HP`, {
-            fontSize: '12px', fontFamily: 'monospace', color: hpColor,
-          }));
-
-          const applyBtn = this.add.text(500, rowY + 12, '▶ USE', {
-            fontSize: '12px', fontFamily: 'monospace', color: '#80ff80',
-            backgroundColor: '#103010', padding: { x: 5, y: 3 },
-          }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-          applyBtn.on('pointerover', () => applyBtn.setStyle({ backgroundColor: '#1a4a1a' }));
-          applyBtn.on('pointerout',  () => applyBtn.setStyle({ backgroundColor: '#103010' }));
-          applyBtn.on('pointerdown', () => {
-            if (!item || !invEntry || invEntry.quantity <= 0) { showFeedback('None left!', '#ff4040'); return; }
-            let used = false;
-            if (item.type === 'heal') {
-              if (creature.currentHp <= 0) { showFeedback("Can't heal a fainted creature!", '#ff4040'); return; }
-              if (creature.currentHp >= creature.maxHp) { showFeedback(`${data.name} is already full HP!`, '#ffa040'); return; }
-              if (item.healAmount)  creature.currentHp = Math.min(creature.maxHp, creature.currentHp + item.healAmount);
-              if (item.healPercent) creature.currentHp = Math.min(creature.maxHp, Math.floor(creature.maxHp * item.healPercent / 100));
-              used = true;
-            } else if (item.type === 'status_cure') {
-              if (!creature.status) { showFeedback(`${data.name} has no status!`, '#ffa040'); return; }
-              if (!item.curesStatus?.includes(creature.status)) { showFeedback(`Doesn't cure ${creature.status}!`, '#ffa040'); return; }
-              creature.status = null;
-              used = true;
-            } else if (item.type === 'xp_boost' && item.xpAmount) {
-              const { leveled } = applyExpGain(creature, item.xpAmount);
-              if (leveled) {
-                const newMoveIds = learnNewMoves(creature);
-                newMoveIds.forEach(moveId => {
-                  const mv = getMoveById(moveId);
-                  if (!mv) return;
-                  if (creature.moves.length < 4) creature.moves.push({ moveId, pp: mv.pp, maxPp: mv.pp });
-                  else { creature.moves.shift(); creature.moves.push({ moveId, pp: mv.pp, maxPp: mv.pp }); }
-                });
-                const evolveId = checkEvolution(creature);
-                if (evolveId) {
-                  const newData = getCreatureById(evolveId)!;
-                  creature.dataId = evolveId;
-                  gameState.seenCreatures.add(evolveId);
-                  gameState.caughtCreatures.add(evolveId);
-                  showFeedback(`${data.name} grew to Lv.${creature.level} and evolved into ${newData.name}!`, '#80ffff');
-                } else {
-                  showFeedback(`${data.name} gained ${item.xpAmount} EXP and grew to Lv.${creature.level}!`, '#80ffff');
-                }
-              } else {
-                showFeedback(`${data.name} gained ${item.xpAmount} EXP!`, '#80ffff');
-              }
-              used = true;
-            }
-            if (used && item.type !== 'xp_boost') {
-              gameState.useItem(this.bagPendingItemId!);
-              showFeedback(`Used on ${data.name}! (${creature.currentHp}/${creature.maxHp} HP)`, '#40ff80');
-            } else if (used) {
-              gameState.useItem(this.bagPendingItemId!);
-            }
-          });
-          rowContainer.add(applyBtn);
+        this.time.delayedCall(1200, () => {
+          // Don't yank the player back to Bag if they've already navigated
+          // to a different tab (or closed the menu) in the meantime.
+          if (this.activeTab !== 'bag') return;
+          this.bagPendingItemId = null;
+          this.switchTab('bag');
         });
       };
-      buildRows();
 
-      // Bottom cover
-      const btmCover = this.add.graphics();
-      btmCover.fillStyle(COVER).fillRoundedRect(4, listTop + listH, 512, panelH - listTop - listH, 8);
-      this.contentContainer.add(btmCover);
+      // ── Scrollable, clipped party rows — built once ────────────────────────
+      const rowContainer = this.createScrollArea(listTop, listH, totalH, { rowStep: ROW_H });
+      gameState.party.forEach((creature, ci) => {
+        const data = getCreatureById(creature.dataId);
+        if (!data) return;
+        const rowY = ci * ROW_H;
 
-      // Top cover
-      const topCover = this.add.graphics();
-      topCover.fillStyle(COVER).fillRect(4, 0, 512, listTop);
-      this.contentContainer.add(topCover);
+        const hpRatio = creature.currentHp / creature.maxHp;
+        const hpColor = hpRatio > 0.5 ? '#30c030' : hpRatio > 0.2 ? '#f0c020' : '#e02020';
 
-      // Re-add header on top of covers
-      this.contentContainer.add(backBtn);
-      this.contentContainer.add(this.add.text(260, 12, `Use: ${item?.name ?? '?'}`, {
-        fontSize: '15px', fontFamily: 'monospace', color: '#ffd700',
-      }).setOrigin(0.5));
-      this.contentContainer.add(this.add.text(260, 30, `Qty: ${invEntry?.quantity ?? 0}`, {
-        fontSize: '11px', fontFamily: 'monospace', color: '#607080',
-      }).setOrigin(0.5));
+        const rowBg = this.add.graphics();
+        rowBg.fillStyle(0x0e1e3a).fillRoundedRect(10, rowY, 498, ROW_H - 4, 5);
+        rowBg.lineStyle(1, 0x253550).strokeRoundedRect(10, rowY, 498, ROW_H - 4, 5);
+        rowContainer.add(rowBg);
+        rowContainer.add(this.add.image(36, rowY + 20, `creature_${creature.dataId}`).setDisplaySize(28, 28));
+        rowContainer.add(this.add.text(58, rowY + 5, `${data.name} Lv.${creature.level}`, {
+          fontSize: '13px', fontFamily: 'monospace', color: '#c0e0ff',
+        }));
+        rowContainer.add(this.add.text(200, rowY + 5, `${creature.currentHp}/${creature.maxHp} HP`, {
+          fontSize: '12px', fontFamily: 'monospace', color: hpColor,
+        }));
 
-      // Scrollbar
-      if (maxScroll > 0) {
-        const trackBg = this.add.graphics();
-        trackBg.fillStyle(0x1a2a40).fillRoundedRect(500, listTop, 8, listH, 4);
-        this.contentContainer.add(trackBg);
-        const thumbH = Math.max(16, (listH / totalH) * listH);
-        const thumb = this.add.graphics();
-        this.contentContainer.add(thumb);
-        const updateThumb = () => {
-          const p = maxScroll > 0 ? (-scrollY) / maxScroll : 0;
-          thumb.clear().fillStyle(0x4080c0)
-            .fillRoundedRect(500, listTop + p * (listH - thumbH), 8, thumbH, 4);
-        };
-        updateThumb();
-        this.activeWheelHandler = (_p: unknown, _g: unknown, _dx: unknown, dy: unknown) => {
-          scrollY = Phaser.Math.Clamp(scrollY - (dy as number) * 0.8, -maxScroll, 0);
-          buildRows(); updateThumb();
-        };
-        this.input.on('wheel', this.activeWheelHandler);
-      }
+        const applyBtn = this.add.text(500, rowY + 12, '▶ USE', {
+          fontSize: '12px', fontFamily: 'monospace', color: '#80ff80',
+          backgroundColor: '#103010', padding: { x: 5, y: 3 },
+        }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+        applyBtn.on('pointerover', () => applyBtn.setStyle({ backgroundColor: '#1a4a1a' }));
+        applyBtn.on('pointerout',  () => applyBtn.setStyle({ backgroundColor: '#103010' }));
+        applyBtn.on('pointerdown', () => {
+          if (!item || !invEntry || invEntry.quantity <= 0) { showFeedback('None left!', '#ff4040'); return; }
+          let used = false;
+          if (item.type === 'heal') {
+            if (creature.currentHp <= 0) { showFeedback("Can't heal a fainted creature!", '#ff4040'); return; }
+            if (creature.currentHp >= creature.maxHp) { showFeedback(`${data.name} is already full HP!`, '#ffa040'); return; }
+            if (item.healAmount)  creature.currentHp = Math.min(creature.maxHp, creature.currentHp + item.healAmount);
+            if (item.healPercent) creature.currentHp = Math.min(creature.maxHp, Math.floor(creature.maxHp * item.healPercent / 100));
+            used = true;
+          } else if (item.type === 'status_cure') {
+            if (!creature.status) { showFeedback(`${data.name} has no status!`, '#ffa040'); return; }
+            if (!item.curesStatus?.includes(creature.status)) { showFeedback(`Doesn't cure ${creature.status}!`, '#ffa040'); return; }
+            creature.status = null;
+            used = true;
+          } else if (item.type === 'xp_boost' && item.xpAmount) {
+            const { leveled } = applyExpGain(creature, item.xpAmount);
+            if (leveled) {
+              const newMoveIds = learnNewMoves(creature);
+              newMoveIds.forEach(moveId => {
+                const mv = getMoveById(moveId);
+                if (!mv) return;
+                if (creature.moves.length < 4) creature.moves.push({ moveId, pp: mv.pp, maxPp: mv.pp });
+                else { creature.moves.shift(); creature.moves.push({ moveId, pp: mv.pp, maxPp: mv.pp }); }
+              });
+              const evolveId = checkEvolution(creature);
+              if (evolveId) {
+                const newData = getCreatureById(evolveId)!;
+                creature.dataId = evolveId;
+                gameState.seenCreatures.add(evolveId);
+                gameState.caughtCreatures.add(evolveId);
+                showFeedback(`${data.name} grew to Lv.${creature.level} and evolved into ${newData.name}!`, '#80ffff');
+              } else {
+                showFeedback(`${data.name} gained ${item.xpAmount} EXP and grew to Lv.${creature.level}!`, '#80ffff');
+              }
+            } else {
+              showFeedback(`${data.name} gained ${item.xpAmount} EXP!`, '#80ffff');
+            }
+            used = true;
+          }
+          if (used && item.type !== 'xp_boost') {
+            gameState.useItem(this.bagPendingItemId!);
+            showFeedback(`Used on ${data.name}! (${creature.currentHp}/${creature.maxHp} HP)`, '#40ff80');
+          } else if (used) {
+            gameState.useItem(this.bagPendingItemId!);
+          }
+        });
+        rowContainer.add(applyBtn);
+      });
       return;
     }
 
@@ -615,59 +604,6 @@ export class MenuScene extends Phaser.Scene {
     const listTop = 34;
     const listH = panelH - listTop - 10;
     const totalH = gameState.inventory.length * ROW_H;
-    const maxScroll = Math.max(0, totalH - listH);
-    let scrollY = 0;
-
-    // Item rows (virtual list)
-    const rowContainer = this.add.container(0, 0);
-    this.contentContainer.add(rowContainer);
-
-    const buildRows = () => {
-      rowContainer.removeAll(true);
-      gameState.inventory.forEach((inv, idx) => {
-        const item = getItemById(inv.id);
-        if (!item) return;
-        const rowY = listTop + idx * ROW_H + scrollY;
-        if (rowY + ROW_H <= listTop || rowY >= listTop + listH) return;
-
-        const row = this.add.graphics();
-        row.fillStyle(0x0e1e3a).fillRoundedRect(10, rowY, 498, ROW_H - 4, 6);
-        row.lineStyle(1, 0x304060).strokeRoundedRect(10, rowY, 498, ROW_H - 4, 6);
-        rowContainer.add(row);
-        rowContainer.add(this.add.text(22, rowY + 6, item.name, {
-          fontSize: '14px', fontFamily: 'monospace', color: '#c0e0ff',
-        }));
-        rowContainer.add(this.add.text(22, rowY + 25, item.description, {
-          fontSize: '10px', fontFamily: 'monospace', color: '#607090',
-        }));
-        rowContainer.add(this.add.text(380, rowY + 13, `× ${inv.quantity}`, {
-          fontSize: '14px', fontFamily: 'monospace', color: '#ffd700',
-        }));
-
-        const isUsable = item.type === 'heal' || item.type === 'status_cure' || item.type === 'xp_boost';
-        if (isUsable && inv.quantity > 0) {
-          const useBtn = this.add.text(500, rowY + 13, 'USE', {
-            fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
-            backgroundColor: '#204020', padding: { x: 7, y: 3 },
-          }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-          useBtn.on('pointerover', () => useBtn.setStyle({ backgroundColor: '#306030' }));
-          useBtn.on('pointerout',  () => useBtn.setStyle({ backgroundColor: '#204020' }));
-          useBtn.on('pointerdown', () => { this.bagPendingItemId = item.id; this.switchTab('bag'); });
-          rowContainer.add(useBtn);
-        }
-      });
-    };
-    buildRows();
-
-    // Bottom cover
-    const btmCover = this.add.graphics();
-    btmCover.fillStyle(COVER).fillRoundedRect(4, listTop + listH, 512, panelH - listTop - listH, 8);
-    this.contentContainer.add(btmCover);
-
-    // Top cover + title on top of cover
-    const topCover = this.add.graphics();
-    topCover.fillStyle(COVER).fillRect(4, 0, 512, listTop);
-    this.contentContainer.add(topCover);
 
     this.contentContainer.add(this.add.text(260, 10, 'Items', {
       fontSize: '16px', fontFamily: 'monospace', color: '#80d0ff',
@@ -683,31 +619,41 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
-    // Scrollbar
-    if (maxScroll > 0) {
-      const trackBg = this.add.graphics();
-      trackBg.fillStyle(0x1a2a40).fillRoundedRect(500, listTop, 8, listH, 4);
-      this.contentContainer.add(trackBg);
-      const thumbH = Math.max(16, (listH / totalH) * listH);
-      const thumb = this.add.graphics();
-      this.contentContainer.add(thumb);
-      const updateThumb = () => {
-        const p = maxScroll > 0 ? (-scrollY) / maxScroll : 0;
-        thumb.clear().fillStyle(0x4080c0)
-          .fillRoundedRect(500, listTop + p * (listH - thumbH), 8, thumbH, 4);
-      };
-      updateThumb();
-      this.activeWheelHandler = (_p: unknown, _g: unknown, _dx: unknown, dy: unknown) => {
-        scrollY = Phaser.Math.Clamp(scrollY - (dy as number) * 0.8, -maxScroll, 0);
-        buildRows(); updateThumb();
-      };
-      this.input.on('wheel', this.activeWheelHandler);
-    }
+    // ── Scrollable, clipped item rows — built once ─────────────────────────
+    const rowContainer = this.createScrollArea(listTop, listH, totalH, { rowStep: ROW_H });
+    gameState.inventory.forEach((inv, idx) => {
+      const item = getItemById(inv.id);
+      if (!item) return;
+      const rowY = idx * ROW_H;
+
+      const row = this.add.graphics();
+      row.fillStyle(0x0e1e3a).fillRoundedRect(10, rowY, 498, ROW_H - 4, 6);
+      row.lineStyle(1, 0x304060).strokeRoundedRect(10, rowY, 498, ROW_H - 4, 6);
+      rowContainer.add(row);
+      rowContainer.add(this.add.text(22, rowY + 6, item.name, {
+        fontSize: '14px', fontFamily: 'monospace', color: '#c0e0ff',
+      }));
+      rowContainer.add(this.add.text(22, rowY + 25, item.description, {
+        fontSize: '10px', fontFamily: 'monospace', color: '#607090',
+      }));
+      rowContainer.add(this.add.text(380, rowY + 13, `× ${inv.quantity}`, {
+        fontSize: '14px', fontFamily: 'monospace', color: '#ffd700',
+      }));
+
+      const isUsable = item.type === 'heal' || item.type === 'status_cure' || item.type === 'xp_boost';
+      if (isUsable && inv.quantity > 0) {
+        const useBtn = this.add.text(500, rowY + 13, 'USE', {
+          fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
+          backgroundColor: '#204020', padding: { x: 7, y: 3 },
+        }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+        useBtn.on('pointerover', () => useBtn.setStyle({ backgroundColor: '#306030' }));
+        useBtn.on('pointerout',  () => useBtn.setStyle({ backgroundColor: '#204020' }));
+        useBtn.on('pointerdown', () => { this.bagPendingItemId = item.id; this.switchTab('bag'); });
+        rowContainer.add(useBtn);
+      }
+    });
   }
 
-  private dexScrollY = 0;
-  private dexScrollContainer: Phaser.GameObjects.Container | null = null;
-  private dexMaskRect: Phaser.GameObjects.Graphics | null = null;
   private readonly DEX_ROW_H = 44;
   private readonly DEX_VISIBLE_ROWS = 7;
 
@@ -740,114 +686,55 @@ export class MenuScene extends Phaser.Scene {
     const listTop  = 48;
     const listH    = panelH - listTop - 12;
     const totalH   = 30 * this.DEX_ROW_H;
-    const maxScroll = Math.max(0, totalH - listH);
-    const COVER     = 0x0b1627;
-    this.dexScrollY = 0;
 
-    // Rows drawn directly into contentContainer at their absolute Y positions.
-    // Only rows that intersect [listTop, listTop+listH] are created.
-    const rowContainer = this.add.container(0, 0);
-    this.contentContainer.add(rowContainer);
+    // ── Scrollable, clipped rows — built once ──────────────────────────────
+    const rowContainer = this.createScrollArea(listTop, listH, totalH, {
+      scrollbarX: 498, scrollbarW: 10, rowStep: this.DEX_ROW_H,
+    });
+    for (let id = 1; id <= 30; id++) {
+      const ry = (id - 1) * this.DEX_ROW_H;
 
-    const buildVisible = () => {
-      rowContainer.removeAll(true);
-      for (let id = 1; id <= 30; id++) {
-        const ry = listTop + (id - 1) * this.DEX_ROW_H + this.dexScrollY;
-        if (ry + this.DEX_ROW_H <= listTop || ry >= listTop + listH) continue;
+      const inParty   = gameState.party.some(c => c.dataId === id);
+      const inStorage = gameState.storage.some(c => c.dataId === id);
+      const isCaught  = gameState.caughtCreatures.has(id) || inParty || inStorage;
+      const isSeen    = gameState.seenCreatures.has(id) || isCaught;
+      const data      = getCreatureById(id)!;
 
-        const inParty   = gameState.party.some(c => c.dataId === id);
-        const inStorage = gameState.storage.some(c => c.dataId === id);
-        const isCaught  = gameState.caughtCreatures.has(id) || inParty || inStorage;
-        const isSeen    = gameState.seenCreatures.has(id) || isCaught;
-        const data      = getCreatureById(id)!;
+      const row = this.add.graphics();
+      row.fillStyle(isCaught ? 0x0e2a1e : isSeen ? 0x0e1e2a : 0x0e0e18)
+         .fillRoundedRect(10, ry, 498, 38, 5);
+      row.lineStyle(1, isCaught ? 0x30c060 : isSeen ? 0x304060 : 0x202030)
+         .strokeRoundedRect(10, ry, 498, 38, 5);
+      rowContainer.add(row);
 
-        const row = this.add.graphics();
-        row.fillStyle(isCaught ? 0x0e2a1e : isSeen ? 0x0e1e2a : 0x0e0e18)
-           .fillRoundedRect(10, ry, 498, 38, 5);
-        row.lineStyle(1, isCaught ? 0x30c060 : isSeen ? 0x304060 : 0x202030)
-           .strokeRoundedRect(10, ry, 498, 38, 5);
-        rowContainer.add(row);
+      rowContainer.add(this.add.text(24, ry + 10,
+        `#${id.toString().padStart(3, '0')}`, {
+        fontSize: '12px', fontFamily: 'monospace', color: '#607090',
+      }));
 
-        rowContainer.add(this.add.text(24, ry + 10,
-          `#${id.toString().padStart(3, '0')}`, {
-          fontSize: '12px', fontFamily: 'monospace', color: '#607090',
+      if (isSeen || isCaught) {
+        const sprite = this.add.image(65, ry + 19, `creature_${id}`).setDisplaySize(28, 28);
+        const nameTxt = this.add.text(90, ry + 8, data.name, {
+          fontSize: '14px', fontFamily: 'monospace', color: isCaught ? '#80ff80' : '#c0e0ff',
+        });
+        const typeTxt = this.add.text(90, ry + 25, data.type.join(' / '), {
+          fontSize: '10px', fontFamily: 'monospace', color: '#607090',
+        });
+        const statusTxt = this.add.text(480, ry + 14, isCaught ? '✓' : '👁', {
+          fontSize: '18px', fontFamily: 'monospace', color: isCaught ? '#40ff40' : '#8080ff',
+        }).setOrigin(1, 0.5);
+        rowContainer.add([sprite, nameTxt, typeTxt, statusTxt]);
+      } else {
+        rowContainer.add(this.add.text(90, ry + 12, '???', {
+          fontSize: '14px', fontFamily: 'monospace', color: '#303050',
         }));
-
-        if (isSeen || isCaught) {
-          const sprite = this.add.image(65, ry + 19, `creature_${id}`).setDisplaySize(28, 28);
-          const nameTxt = this.add.text(90, ry + 8, data.name, {
-            fontSize: '14px', fontFamily: 'monospace', color: isCaught ? '#80ff80' : '#c0e0ff',
-          });
-          const typeTxt = this.add.text(90, ry + 25, data.type.join(' / '), {
-            fontSize: '10px', fontFamily: 'monospace', color: '#607090',
-          });
-          const statusTxt = this.add.text(480, ry + 14, isCaught ? '✓' : '👁', {
-            fontSize: '18px', fontFamily: 'monospace', color: isCaught ? '#40ff40' : '#8080ff',
-          }).setOrigin(1, 0.5);
-          rowContainer.add([sprite, nameTxt, typeTxt, statusTxt]);
-        } else {
-          rowContainer.add(this.add.text(90, ry + 12, '???', {
-            fontSize: '14px', fontFamily: 'monospace', color: '#303050',
-          }));
-        }
       }
-    };
-    buildVisible();
-
-    // ── Top + bottom covers keep content inside the panel ─────────────────────
-    const topCover = this.add.graphics();
-    topCover.fillStyle(COVER).fillRect(4, 0, 512, listTop);
-    this.contentContainer.add(topCover);
-
-    const bottomCover = this.add.graphics();
-    bottomCover.fillStyle(COVER).fillRoundedRect(4, listTop + listH, 512, panelH - listTop - listH, 8);
-    this.contentContainer.add(bottomCover);
-
-    // ── Header re-added on top of the covers so it's always visible ───────────
-    this.contentContainer.add(this.add.text(260, 14,
-      `Creature Encyclopedia  Seen: ${seenCount} | Caught: ${caughtCount}`, {
-      fontSize: '14px', fontFamily: 'monospace', color: '#80d0ff',
-    }).setOrigin(0.5));
-    this.contentContainer.add(this.add.text(260, 34, '▲▼ Scroll: Mouse Wheel or ↑↓', {
-      fontSize: '10px', fontFamily: 'monospace', color: '#404060',
-    }).setOrigin(0.5));
-
-    // ── Scrollbar ─────────────────────────────────────────────────────────────
-    const trackBg = this.add.graphics();
-    trackBg.fillStyle(0x1a2a40).fillRoundedRect(498, listTop, 10, listH, 5);
-    this.contentContainer.add(trackBg);
-    const thumbH    = Math.max(20, (listH / totalH) * listH);
-    const scrollThumb = this.add.graphics();
-    this.contentContainer.add(scrollThumb);
-
-    const updateThumb = () => {
-      const p = maxScroll > 0 ? (-this.dexScrollY) / maxScroll : 0;
-      scrollThumb.clear().fillStyle(0x4080c0)
-        .fillRoundedRect(498, listTop + p * (listH - thumbH), 10, thumbH, 5);
-    };
-    updateThumb();
-
-    const doScroll = (dy: number) => {
-      this.dexScrollY = Phaser.Math.Clamp(this.dexScrollY + dy, -maxScroll, 0);
-      buildVisible();
-      updateThumb();
-    };
-
-    this.activeWheelHandler = (_p: unknown, _g: unknown, _dx: unknown, dy: unknown) => {
-      doScroll(-(dy as number) * 0.8);
-    };
-    this.input.on('wheel', this.activeWheelHandler);
-
-    const upKey   = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
-    const downKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
-    upKey.on('down',   () => doScroll( this.DEX_ROW_H));
-    downKey.on('down', () => doScroll(-this.DEX_ROW_H));
+    }
   }
 
 private renderStorage() {
     const H = this.scale.height;
     const panelH = H - 220;
-    const COVER = 0x0b1627;
 
     const bg = this.add.graphics();
     bg.fillStyle(0x0a1220, 0.5).fillRoundedRect(4, 0, 512, panelH, 8);
@@ -872,91 +759,7 @@ private renderStorage() {
     const footerH  = 20;
     const listH    = panelH - listTop - footerH;
     const totalH   = ROW_H * storageCount;
-    const maxScroll = Math.max(0, totalH - listH);
 
-    let scrollY = 0;
-
-    // Rows are virtualized — only ones intersecting [listTop, listTop+listH] are built.
-    const rowContainer = this.add.container(0, 0);
-    this.contentContainer.add(rowContainer);
-
-    const rebuildRows = () => {
-      rowContainer.removeAll(true);
-      gameState.storage.forEach((creature, storageIdx) => {
-        const data = getCreatureById(creature.dataId);
-        if (!data) return;
-        const ry = listTop + storageIdx * ROW_H + scrollY;
-        if (ry + ROW_H <= listTop || ry >= listTop + listH) return;
-
-        const typeColor = TYPE_COLORS[data.type[0]] ?? 0x808080;
-
-        const rowBg = this.add.graphics();
-        rowBg.fillStyle(0x0e1e3a).fillRoundedRect(10, ry, 490, ROW_H - 4, 6);
-        rowBg.lineStyle(1, typeColor, 0.4).strokeRoundedRect(10, ry, 490, ROW_H - 4, 6);
-        rowContainer.add(rowBg);
-
-        rowContainer.add(
-          this.add.image(46, ry + (ROW_H - 4) / 2, `creature_${creature.dataId}`).setDisplaySize(38, 38),
-        );
-        rowContainer.add(this.add.text(76, ry + 7, `${creature.nickname ?? data.name}  Lv.${creature.level}`, {
-          fontSize: '14px', fontFamily: 'monospace', color: '#ffffff',
-        }));
-
-        data.type.forEach((t, ti) => {
-          const tc = TYPE_COLORS[t] ?? 0x808080;
-          rowContainer.add(this.add.text(76 + ti * 68, ry + 26, t, {
-            fontSize: '10px', fontFamily: 'monospace', color: '#ffffff',
-            backgroundColor: '#' + tc.toString(16).padStart(6, '0'), padding: { x: 5, y: 2 },
-          }));
-        });
-
-        const hpRatio = creature.currentHp / creature.maxHp;
-        const hpColor = hpRatio > 0.5 ? 0x30c030 : hpRatio > 0.2 ? 0xf0c020 : 0xe02020;
-        const hpBar = this.add.graphics();
-        hpBar.fillStyle(0x303050).fillRoundedRect(76, ry + 40, 200, 8, 3);
-        hpBar.fillStyle(hpColor).fillRoundedRect(76, ry + 40, Math.max(0, Math.floor(200 * hpRatio)), 8, 3);
-        rowContainer.add(hpBar);
-        rowContainer.add(this.add.text(282, ry + 37, `${creature.currentHp}/${creature.maxHp}`, {
-          fontSize: '10px', fontFamily: 'monospace', color: '#607090',
-        }));
-
-        const canAddToParty = partyCount < 6;
-        const btnLabel = canAddToParty ? '⇄ TO PARTY' : `⇄ SWAP [${this.selectedPartyIndex + 1}]`;
-        const swapBtn = this.add.text(492, ry + (ROW_H - 4) / 2, btnLabel, {
-          fontSize: '11px', fontFamily: 'monospace', color: '#ffd700',
-          backgroundColor: '#1a3a1a', padding: { x: 6, y: 4 },
-        }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
-
-        swapBtn.on('pointerover', () => swapBtn.setStyle({ backgroundColor: '#2a5a2a' }));
-        swapBtn.on('pointerout',  () => swapBtn.setStyle({ backgroundColor: '#1a3a1a' }));
-        swapBtn.on('pointerdown', () => {
-          if (canAddToParty) {
-            gameState.party.push(creature);
-            gameState.storage.splice(storageIdx, 1);
-          } else {
-            const idx = Phaser.Math.Clamp(this.selectedPartyIndex, 0, gameState.party.length - 1);
-            const partyCreature = gameState.party[idx];
-            gameState.party[idx] = creature;
-            gameState.storage[storageIdx] = partyCreature;
-          }
-          this.switchTab('storage');
-        });
-        rowContainer.add(swapBtn);
-      });
-    };
-    rebuildRows();
-
-    // ── Bottom cover — hides overflow past list bottom ────────────────────────
-    const bottomCover = this.add.graphics();
-    bottomCover.fillStyle(COVER).fillRoundedRect(4, listTop + listH, 512, panelH - listTop - listH, 8);
-    this.contentContainer.add(bottomCover);
-
-    // ── Top cover — hides overflow past list top ──────────────────────────────
-    const topCover = this.add.graphics();
-    topCover.fillStyle(COVER).fillRect(4, 0, 512, listTop);
-    this.contentContainer.add(topCover);
-
-    // ── Header re-added on top of covers ───────────────────────────────────────
     this.contentContainer.add(this.add.text(260, 14,
       `📦 Storage Box  (${storageCount} creature${storageCount !== 1 ? 's' : ''})`, {
       fontSize: '15px', fontFamily: 'monospace', color: '#80d0ff',
@@ -966,27 +769,70 @@ private renderStorage() {
       fontSize: '9px', fontFamily: 'monospace', color: '#404060',
     }).setOrigin(0.5));
 
-    // ── Scrollbar ───────────────────────────────────────────────────────────────
-    if (maxScroll > 0) {
-      const trackBg = this.add.graphics();
-      trackBg.fillStyle(0x1a2a40).fillRoundedRect(498, listTop, 10, listH, 5);
-      this.contentContainer.add(trackBg);
-      const thumbH = Math.max(20, (listH / totalH) * listH);
-      const thumb = this.add.graphics();
-      this.contentContainer.add(thumb);
-      const updateThumb = () => {
-        const p = maxScroll > 0 ? (-scrollY) / maxScroll : 0;
-        thumb.clear().fillStyle(0x4080c0)
-          .fillRoundedRect(498, listTop + p * (listH - thumbH), 10, thumbH, 5);
-      };
-      updateThumb();
-      this.activeWheelHandler = (_p: unknown, _g: unknown, _dx: unknown, dy: unknown) => {
-        scrollY = Phaser.Math.Clamp(scrollY - (dy as number) * 0.8, -maxScroll, 0);
-        rebuildRows();
-        updateThumb();
-      };
-      this.input.on('wheel', this.activeWheelHandler);
-    }
+    // ── Scrollable, clipped rows — built once ──────────────────────────────
+    const rowContainer = this.createScrollArea(listTop, listH, totalH, {
+      scrollbarX: 498, scrollbarW: 10, rowStep: ROW_H,
+    });
+    gameState.storage.forEach((creature, storageIdx) => {
+      const data = getCreatureById(creature.dataId);
+      if (!data) return;
+      const ry = storageIdx * ROW_H;
+
+      const typeColor = TYPE_COLORS[data.type[0]] ?? 0x808080;
+
+      const rowBg = this.add.graphics();
+      rowBg.fillStyle(0x0e1e3a).fillRoundedRect(10, ry, 490, ROW_H - 4, 6);
+      rowBg.lineStyle(1, typeColor, 0.4).strokeRoundedRect(10, ry, 490, ROW_H - 4, 6);
+      rowContainer.add(rowBg);
+
+      rowContainer.add(
+        this.add.image(46, ry + (ROW_H - 4) / 2, `creature_${creature.dataId}`).setDisplaySize(38, 38),
+      );
+      rowContainer.add(this.add.text(76, ry + 7, `${creature.nickname ?? data.name}  Lv.${creature.level}`, {
+        fontSize: '14px', fontFamily: 'monospace', color: '#ffffff',
+      }));
+
+      data.type.forEach((t, ti) => {
+        const tc = TYPE_COLORS[t] ?? 0x808080;
+        rowContainer.add(this.add.text(76 + ti * 68, ry + 26, t, {
+          fontSize: '10px', fontFamily: 'monospace', color: '#ffffff',
+          backgroundColor: '#' + tc.toString(16).padStart(6, '0'), padding: { x: 5, y: 2 },
+        }));
+      });
+
+      const hpRatio = creature.currentHp / creature.maxHp;
+      const hpColor = hpRatio > 0.5 ? 0x30c030 : hpRatio > 0.2 ? 0xf0c020 : 0xe02020;
+      const hpBar = this.add.graphics();
+      hpBar.fillStyle(0x303050).fillRoundedRect(76, ry + 40, 200, 8, 3);
+      hpBar.fillStyle(hpColor).fillRoundedRect(76, ry + 40, Math.max(0, Math.floor(200 * hpRatio)), 8, 3);
+      rowContainer.add(hpBar);
+      rowContainer.add(this.add.text(282, ry + 37, `${creature.currentHp}/${creature.maxHp}`, {
+        fontSize: '10px', fontFamily: 'monospace', color: '#607090',
+      }));
+
+      const canAddToParty = partyCount < 6;
+      const btnLabel = canAddToParty ? '⇄ TO PARTY' : `⇄ SWAP [${this.selectedPartyIndex + 1}]`;
+      const swapBtn = this.add.text(492, ry + (ROW_H - 4) / 2, btnLabel, {
+        fontSize: '11px', fontFamily: 'monospace', color: '#ffd700',
+        backgroundColor: '#1a3a1a', padding: { x: 6, y: 4 },
+      }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+
+      swapBtn.on('pointerover', () => swapBtn.setStyle({ backgroundColor: '#2a5a2a' }));
+      swapBtn.on('pointerout',  () => swapBtn.setStyle({ backgroundColor: '#1a3a1a' }));
+      swapBtn.on('pointerdown', () => {
+        if (canAddToParty) {
+          gameState.party.push(creature);
+          gameState.storage.splice(storageIdx, 1);
+        } else {
+          const idx = Phaser.Math.Clamp(this.selectedPartyIndex, 0, gameState.party.length - 1);
+          const partyCreature = gameState.party[idx];
+          gameState.party[idx] = creature;
+          gameState.storage[storageIdx] = partyCreature;
+        }
+        this.switchTab('storage');
+      });
+      rowContainer.add(swapBtn);
+    });
 
     // ── Footer — selected party slot, always visible, outside the scroll area ─
     if (gameState.party.length > 0) {
@@ -1058,7 +904,14 @@ private renderStorage() {
     saveBtn.on('pointerdown', () => {
       gameState.save();
       saveBtn.setText('✓ SAVED!').setColor('#40ff40');
-      this.time.delayedCall(2000, () => saveBtn.setText('[ SAVE GAME ]').setColor('#ffd700'));
+      this.time.delayedCall(2000, () => {
+        // The player may have switched tabs or closed the menu in the
+        // meantime, which destroys saveBtn (contentContainer.removeAll(true)
+        // in switchTab()/shutdown()). Touching a destroyed GameObject here
+        // throws, so bail out if it's gone.
+        if (!saveBtn.active) return;
+        saveBtn.setText('[ SAVE GAME ]').setColor('#ffd700');
+      });
     });
     this.contentContainer.add(saveBtn);
   }
@@ -1066,6 +919,17 @@ private renderStorage() {
   private closeMenu() {
     this.scene.stop('Menu');
     if (this.config?.onClose) this.config.onClose();
+  }
+
+  /**
+   * Phaser calls this whenever the scene stops, regardless of how (Close
+   * button, Esc, or anything else). Without this, closing the menu while a
+   * scroll camera was active (e.g. mid-scroll in the Dex) would leave that
+   * camera and its wheel/arrow-key listeners running indefinitely on top of
+   * the overworld afterwards.
+   */
+  shutdown() {
+    this.teardownScrollArea();
   }
 }
 

@@ -1485,6 +1485,24 @@ export class BootScene extends Phaser.Scene {
     });
     g.generateTexture('npc_move_reminder', W, H);
 
+    // ── Guide NPC — friendly scout, backpack, map in hand ─────────────────────
+    g.clear();
+    drawBody(16, 26, 0x2d6a4f, 0x1b4332, 0xf0d0b0, 0x0a3020, 0x8a6040, () => {
+      // Backpack
+      g.fillStyle(0x6a4028).fillRect(2, 20, 6, 14);
+      g.fillStyle(0x8a6040).fillRect(3, 22, 4, 3);
+      // Bandana
+      g.fillStyle(0xd4a020).fillRect(9, 6, 14, 4);
+      // Map scroll in hand
+      g.fillStyle(0xf0e6c8).fillRect(24, 21, 6, 10);
+      g.fillStyle(0xc09858).fillRect(24, 21, 6, 2).fillRect(24, 29, 6, 2);
+      g.fillStyle(0x6a8a4a).fillRect(25, 24, 2, 2).fillRect(28, 25, 2, 2); // map marks
+      // Compass badge on chest
+      g.fillStyle(0xffd700).fillCircle(16, 24, 3);
+      g.fillStyle(0x2d6a4f).fillCircle(16, 24, 1.5);
+    });
+    g.generateTexture('npc_guide', W, H);
+
     g.destroy();
   }
 
