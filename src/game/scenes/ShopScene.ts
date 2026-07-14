@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { NPC } from '../data/types';
 import { getItemById } from '../data/items';
 import { gameState } from '../GameState';
+import { createScrollArea, type ScrollAreaHandle } from './scrollArea';
 
 interface ShopConfig { npc: NPC; }
 
@@ -15,9 +16,18 @@ export class ShopScene extends Phaser.Scene {
     const items = npc.shopItems;
     const rowH = 46;
     const shopW = 420;
-    const shopH = 56 + items.length * rowH + 44;   // header + rows + footer
+    const headerH = 52;
+    const footerH = 44;
+    // Panel height is capped so a big shop's item list scrolls (and clips)
+    // instead of the whole panel growing past the screen.
+    const maxShopH = H - 32;
+    const naturalH = headerH + items.length * rowH + footerH;
+    const shopH = Math.min(naturalH, maxShopH);
+    const listH = shopH - headerH - footerH;
     const sx = Math.floor((W - shopW) / 2);
     const sy = Math.floor((H - shopH) / 2);
+
+    let scrollHandle: ScrollAreaHandle | null = null;
 
     // ── Dim background ────────────────────────────────────────────────────────
     const dim = this.add.graphics();
@@ -30,7 +40,7 @@ export class ShopScene extends Phaser.Scene {
     panel.lineStyle(3, 0xffd700).strokeRoundedRect(sx, sy, shopW, shopH, 10);
 
     // Title + money
-    this.add.text(sx + shopW / 2, sy + 14, '🛒  SHOP', {
+    const titleTxt = this.add.text(sx + shopW / 2, sy + 14, '🛒  SHOP', {
       fontSize: '18px', fontFamily: 'monospace', color: '#ffd700',
     }).setOrigin(0.5, 0);
 
@@ -38,41 +48,55 @@ export class ShopScene extends Phaser.Scene {
       fontSize: '14px', fontFamily: 'monospace', color: '#ffd700',
     }).setOrigin(1, 0);
 
-    // ── Item rows ─────────────────────────────────────────────────────────────
+    // ── Close button (always visible, outside the scroll area) ─────────────────
+    const closeBtn = this.add.text(sx + shopW / 2, sy + shopH - footerH + 6, '[ Close Shop ]', {
+      fontSize: '14px', fontFamily: 'monospace', color: '#ff8080',
+    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    closeBtn.on('pointerover', () => closeBtn.setColor('#ffaaaa'));
+    closeBtn.on('pointerout',  () => closeBtn.setColor('#ff8080'));
+    closeBtn.on('pointerdown', () => this.closeShop());
+
+    // ── Scrollable, clipped item rows ───────────────────────────────────────────
     const renderRows = () => {
-      // Destroy previous rows (everything after the first 4 fixed elements)
-      this.children.list
-        .filter(c => (c as Phaser.GameObjects.GameObject).getData('shopRow'))
-        .forEach(c => c.destroy());
+      scrollHandle?.destroy();
+      scrollHandle = createScrollArea(
+        this, sx + 8, sy + headerH, shopW - 16, listH,
+        items.length * rowH,
+        [dim, panel, titleTxt, moneyTxt, closeBtn],
+        { rowStep: rowH },
+      );
+      const rows = scrollHandle.container;
 
       items.forEach((shopItem: { id: number; price: number }, i: number) => {
         const item = getItemById(shopItem.id);
         if (!item) return;
-        const iy = sy + 52 + i * rowH;
+        const iy = i * rowH;
         const canAfford = gameState.money >= shopItem.price;
 
-        const rowBg = this.add.graphics().setData('shopRow', true);
-        rowBg.fillStyle(canAfford ? 0x0e1e3a : 0x080e1a).fillRoundedRect(sx + 8, iy, shopW - 16, rowH - 4, 5);
+        const rowBg = this.add.graphics();
+        rowBg.fillStyle(canAfford ? 0x0e1e3a : 0x080e1a).fillRoundedRect(0, iy, shopW - 16, rowH - 4, 5);
+        rows.add(rowBg);
 
-        const nameTxt = this.add.text(sx + 18, iy + 5, item.name, {
+        rows.add(this.add.text(10, iy + 5, item.name, {
           fontSize: '14px', fontFamily: 'monospace', color: canAfford ? '#c0e0ff' : '#506070',
-        }).setData('shopRow', true);
+        }));
 
         const descTrunc = item.description.length > 25 ? item.description.slice(0, 25) + '…' : item.description;
-        this.add.text(sx + 18, iy + 24, descTrunc, {
+        rows.add(this.add.text(10, iy + 24, descTrunc, {
           fontSize: '10px', fontFamily: 'monospace', color: '#405060',
-        }).setData('shopRow', true);
+        }));
 
-        this.add.text(sx + shopW - 88, iy + 12, `¢${shopItem.price}`, {
+        rows.add(this.add.text(shopW - 96, iy + 12, `¢${shopItem.price}`, {
           fontSize: '13px', fontFamily: 'monospace', color: canAfford ? '#ffd700' : '#705820',
-        }).setData('shopRow', true);
+        }));
 
-        const buyBtn = this.add.text(sx + shopW - 10, iy + 11, 'BUY', {
+        const buyBtn = this.add.text(shopW - 18, iy + 11, 'BUY', {
           fontSize: '13px', fontFamily: 'monospace',
           color:           canAfford ? '#ffffff' : '#303030',
           backgroundColor: canAfford ? '#1a50b0' : '#151515',
           padding: { x: 8, y: 3 },
-        }).setOrigin(1, 0).setData('shopRow', true);
+        }).setOrigin(1, 0);
+        rows.add(buyBtn);
 
         if (canAfford) {
           buyBtn.setInteractive({ useHandCursor: true });
@@ -90,16 +114,11 @@ export class ShopScene extends Phaser.Scene {
 
     renderRows();
 
-    // ── Close button ──────────────────────────────────────────────────────────
-    const closeY = sy + 52 + items.length * rowH + 6;
-    const closeBtn = this.add.text(sx + shopW / 2, closeY, '[ Close Shop ]', {
-      fontSize: '14px', fontFamily: 'monospace', color: '#ff8080',
-    }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-    closeBtn.on('pointerover', () => closeBtn.setColor('#ffaaaa'));
-    closeBtn.on('pointerout',  () => closeBtn.setColor('#ff8080'));
-    closeBtn.on('pointerdown', () => this.closeShop());
-
     this.input.keyboard!.once('keydown-ESC', () => this.closeShop());
+
+    // Belt-and-suspenders: if the scene stops any other way, still clean up
+    // the scroll camera/listeners rather than leaking them.
+    this.events.once('shutdown', () => { scrollHandle?.destroy(); scrollHandle = null; });
   }
 
   private closeShop() {

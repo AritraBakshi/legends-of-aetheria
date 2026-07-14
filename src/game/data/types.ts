@@ -1,4 +1,4 @@
-export type CreatureType = 'Fire' | 'Water' | 'Nature' | 'Electric' | 'Earth' | 'Wind' | 'Shadow' | 'Light' | 'Normal';
+export type CreatureType = 'Fire' | 'Water' | 'Nature' | 'Electric' | 'Earth' | 'Wind' | 'Shadow' | 'Light' | 'Normal' | 'Ice' | 'Dragon';
 
 export type MoveCategory = 'Physical' | 'Special' | 'Status';
 
@@ -27,6 +27,9 @@ export interface Move {
   pp: number;
   description: string;
   effect?: MoveEffect;
+  /** If set, this move always deals exactly this much damage (still blocked
+   * by type immunity), ignoring stats, STAB, crits, and the normal formula. */
+  fixedDamage?: number;
 }
 
 export interface LearnableMove {

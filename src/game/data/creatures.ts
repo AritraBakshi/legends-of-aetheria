@@ -1,4 +1,4 @@
-import type { CreatureData } from './types';
+import type { CreatureData, LearnableMove } from './types';
 
 export const CREATURES: CreatureData[] = [
   // ─── STARTERS ───────────────────────────────────────────────────────────────
@@ -9,9 +9,8 @@ export const CREATURES: CreatureData[] = [
     ability: 'Blaze — boosts Fire moves at low HP', catchRate: 45, rarity: 'rare',
     evolutionLevel: 16, evolvesInto: 2,
     learnset: [
-      { level: 1, moveId: 1 }, { level: 1, moveId: 10 }, { level: 5, moveId: 4 },
-      { level: 9, moveId: 14 }, { level: 14, moveId: 11 }, { level: 20, moveId: 15 },
-      { level: 28, moveId: 12 }, { level: 36, moveId: 13 },
+      { level: 1, moveId: 1 }, { level: 1, moveId: 10 }, { level: 1, moveId: 300 },
+      { level: 5, moveId: 4 }, { level: 9, moveId: 14 }, { level: 14, moveId: 11 },
     ],
   },
   {
@@ -21,8 +20,8 @@ export const CREATURES: CreatureData[] = [
     ability: 'Blaze — boosts Fire moves at low HP', catchRate: 45, rarity: 'rare',
     evolutionLevel: 36, evolvesInto: 3,
     learnset: [
-      { level: 1, moveId: 10 }, { level: 1, moveId: 11 }, { level: 16, moveId: 14 },
-      { level: 22, moveId: 15 }, { level: 30, moveId: 12 }, { level: 38, moveId: 13 },
+      { level: 16, moveId: 110 }, { level: 22, moveId: 15 },
+      { level: 30, moveId: 12 }, { level: 38, moveId: 13 },
     ],
   },
   {
@@ -31,8 +30,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 80, atk: 84, def: 78, spatk: 109, spdef: 75, spd: 90 },
     ability: 'Inferno — Fire moves always burn', catchRate: 45, rarity: 'rare',
     learnset: [
-      { level: 1, moveId: 10 }, { level: 1, moveId: 71 }, { level: 36, moveId: 13 },
-      { level: 42, moveId: 72 }, { level: 50, moveId: 82 },
+      { level: 1, moveId: 71 }, { level: 36, moveId: 111 },
+      { level: 44, moveId: 72 }, { level: 50, moveId: 115 }, { level: 58, moveId: 82 },
     ],
   },
   {
@@ -42,9 +41,8 @@ export const CREATURES: CreatureData[] = [
     ability: 'Torrent — boosts Water moves at low HP', catchRate: 45, rarity: 'rare',
     evolutionLevel: 16, evolvesInto: 5,
     learnset: [
-      { level: 1, moveId: 1 }, { level: 1, moveId: 20 }, { level: 5, moveId: 4 },
-      { level: 9, moveId: 24 }, { level: 14, moveId: 21 }, { level: 20, moveId: 80 },
-      { level: 28, moveId: 22 }, { level: 36, moveId: 23 },
+      { level: 1, moveId: 1 }, { level: 1, moveId: 20 }, { level: 1, moveId: 301 },
+      { level: 5, moveId: 4 }, { level: 9, moveId: 24 }, { level: 14, moveId: 21 },
     ],
   },
   {
@@ -54,18 +52,19 @@ export const CREATURES: CreatureData[] = [
     ability: 'Torrent — boosts Water moves at low HP', catchRate: 45, rarity: 'rare',
     evolutionLevel: 36, evolvesInto: 6,
     learnset: [
-      { level: 1, moveId: 20 }, { level: 1, moveId: 21 }, { level: 16, moveId: 24 },
-      { level: 22, moveId: 81 }, { level: 30, moveId: 22 }, { level: 38, moveId: 23 },
+      { level: 16, moveId: 120 }, { level: 22, moveId: 124 },
+      { level: 30, moveId: 22 }, { level: 38, moveId: 121 },
     ],
   },
   {
-    id: 6, name: 'Tidalon', type: ['Water', 'Light'],
+    id: 6, name: 'Tidalon', type: ['Water', 'Dragon'],
     description: 'A radiant sea dragon that shines like sunlight through water.',
     baseStats: { hp: 79, atk: 83, def: 84, spatk: 109, spdef: 82, spd: 75 },
     ability: 'Deep Torrent — water moves always lower Sp.Def', catchRate: 45, rarity: 'rare',
     learnset: [
-      { level: 1, moveId: 20 }, { level: 1, moveId: 83 }, { level: 36, moveId: 23 },
-      { level: 42, moveId: 82 }, { level: 50, moveId: 62 },
+      { level: 1, moveId: 83 }, { level: 36, moveId: 23 },
+      { level: 40, moveId: 201 }, { level: 44, moveId: 180 },
+      { level: 50, moveId: 123 }, { level: 54, moveId: 207 }, { level: 58, moveId: 82 },
     ],
   },
   {
@@ -75,9 +74,8 @@ export const CREATURES: CreatureData[] = [
     ability: 'Overgrow — boosts Nature moves at low HP', catchRate: 45, rarity: 'rare',
     evolutionLevel: 16, evolvesInto: 8,
     learnset: [
-      { level: 1, moveId: 1 }, { level: 1, moveId: 30 }, { level: 5, moveId: 4 },
-      { level: 9, moveId: 34 }, { level: 14, moveId: 31 }, { level: 20, moveId: 54 },
-      { level: 28, moveId: 33 }, { level: 36, moveId: 32 },
+      { level: 1, moveId: 1 }, { level: 1, moveId: 30 }, { level: 1, moveId: 302 },
+      { level: 5, moveId: 4 }, { level: 9, moveId: 34 }, { level: 14, moveId: 31 },
     ],
   },
   {
@@ -87,8 +85,8 @@ export const CREATURES: CreatureData[] = [
     ability: 'Overgrow — boosts Nature moves at low HP', catchRate: 45, rarity: 'rare',
     evolutionLevel: 36, evolvesInto: 9,
     learnset: [
-      { level: 1, moveId: 30 }, { level: 1, moveId: 31 }, { level: 16, moveId: 34 },
-      { level: 22, moveId: 35 }, { level: 30, moveId: 33 }, { level: 38, moveId: 32 },
+      { level: 16, moveId: 130 }, { level: 22, moveId: 35 },
+      { level: 30, moveId: 33 }, { level: 38, moveId: 32 },
     ],
   },
   {
@@ -97,8 +95,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 80, atk: 82, def: 85, spatk: 109, spdef: 82, spd: 75 },
     ability: 'Deep Roots — Nature moves always entangle', catchRate: 45, rarity: 'rare',
     learnset: [
-      { level: 1, moveId: 30 }, { level: 1, moveId: 53 }, { level: 36, moveId: 32 },
-      { level: 42, moveId: 52 }, { level: 50, moveId: 33 },
+      { level: 1, moveId: 53 }, { level: 36, moveId: 151 },
+      { level: 44, moveId: 135 }, { level: 50, moveId: 52 },
     ],
   },
 
@@ -111,17 +109,18 @@ export const CREATURES: CreatureData[] = [
     evolutionLevel: 20, evolvesInto: 11,
     learnset: [
       { level: 1, moveId: 1 }, { level: 1, moveId: 50 }, { level: 6, moveId: 5 },
-      { level: 12, moveId: 51 }, { level: 20, moveId: 54 }, { level: 30, moveId: 52 },
+      { level: 12, moveId: 51 }, { level: 20, moveId: 54 },
     ],
   },
   {
-    id: 11, name: 'Bouldrake', type: ['Earth'],
+    id: 11, name: 'Bouldrake', type: ['Earth', 'Dragon'],
     description: 'A hulking stone dragon that shrugs off most attacks.',
     baseStats: { hp: 65, atk: 80, def: 75, spatk: 40, spdef: 55, spd: 65 },
     ability: 'Rock Solid — immune to Critical Hits', catchRate: 120, rarity: 'uncommon',
     learnset: [
-      { level: 1, moveId: 50 }, { level: 1, moveId: 51 }, { level: 20, moveId: 54 },
-      { level: 28, moveId: 53 }, { level: 38, moveId: 52 },
+      { level: 21, moveId: 150 }, { level: 28, moveId: 153 },
+      { level: 36, moveId: 151 }, { level: 40, moveId: 200 },
+      { level: 46, moveId: 52 }, { level: 52, moveId: 202 },
     ],
   },
   {
@@ -132,17 +131,18 @@ export const CREATURES: CreatureData[] = [
     evolutionLevel: 18, evolvesInto: 13,
     learnset: [
       { level: 1, moveId: 2 }, { level: 1, moveId: 60 }, { level: 7, moveId: 34 },
-      { level: 12, moveId: 61 }, { level: 18, moveId: 63 }, { level: 26, moveId: 62 },
+      { level: 12, moveId: 61 }, { level: 18, moveId: 63 },
     ],
   },
   {
-    id: 13, name: 'Galewyn', type: ['Wind'],
+    id: 13, name: 'Galewyn', type: ['Wind', 'Dragon'],
     description: 'A wind wyrm so fast it leaves after-images behind.',
     baseStats: { hp: 55, atk: 50, def: 45, spatk: 80, spdef: 60, spd: 100 },
     ability: 'Gale Wings — Wind moves have +1 priority', catchRate: 45, rarity: 'uncommon',
     learnset: [
-      { level: 1, moveId: 60 }, { level: 1, moveId: 61 }, { level: 18, moveId: 63 },
-      { level: 26, moveId: 62 }, { level: 36, moveId: 61 },
+      { level: 19, moveId: 160 }, { level: 26, moveId: 62 },
+      { level: 34, moveId: 161 }, { level: 42, moveId: 201 },
+      { level: 40, moveId: 162 }, { level: 48, moveId: 204 },
     ],
   },
   {
@@ -153,7 +153,7 @@ export const CREATURES: CreatureData[] = [
     evolutionLevel: 22, evolvesInto: 15,
     learnset: [
       { level: 1, moveId: 2 }, { level: 1, moveId: 70 }, { level: 8, moveId: 5 },
-      { level: 14, moveId: 71 }, { level: 22, moveId: 73 }, { level: 30, moveId: 72 },
+      { level: 14, moveId: 71 }, { level: 22, moveId: 73 },
     ],
   },
   {
@@ -162,8 +162,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 62, atk: 90, def: 55, spatk: 70, spdef: 50, spd: 85 },
     ability: 'Intimidate — lowers foe\'s Attack on entry', catchRate: 75, rarity: 'uncommon',
     learnset: [
-      { level: 1, moveId: 70 }, { level: 1, moveId: 71 }, { level: 22, moveId: 73 },
-      { level: 30, moveId: 72 }, { level: 40, moveId: 71 },
+      { level: 23, moveId: 170 }, { level: 30, moveId: 72 },
+      { level: 36, moveId: 171 }, { level: 42, moveId: 173 },
     ],
   },
   {
@@ -174,7 +174,7 @@ export const CREATURES: CreatureData[] = [
     evolutionLevel: 20, evolvesInto: 17,
     learnset: [
       { level: 1, moveId: 1 }, { level: 1, moveId: 80 }, { level: 7, moveId: 83 },
-      { level: 14, moveId: 81 }, { level: 20, moveId: 80 }, { level: 28, moveId: 82 },
+      { level: 14, moveId: 81 }, { level: 20, moveId: 182 },
     ],
   },
   {
@@ -183,8 +183,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 68, atk: 45, def: 55, spatk: 90, spdef: 78, spd: 60 },
     ability: 'Solar Power — boosts Sp.Atk in sunny weather', catchRate: 75, rarity: 'uncommon',
     learnset: [
-      { level: 1, moveId: 80 }, { level: 1, moveId: 83 }, { level: 20, moveId: 81 },
-      { level: 28, moveId: 82 }, { level: 38, moveId: 82 },
+      { level: 21, moveId: 180 }, { level: 28, moveId: 181 },
+      { level: 38, moveId: 82 }, { level: 46, moveId: 184 },
     ],
   },
   {
@@ -195,7 +195,7 @@ export const CREATURES: CreatureData[] = [
     evolutionLevel: 20, evolvesInto: 19,
     learnset: [
       { level: 1, moveId: 2 }, { level: 1, moveId: 40 }, { level: 6, moveId: 43 },
-      { level: 12, moveId: 44 }, { level: 20, moveId: 41 }, { level: 30, moveId: 42 },
+      { level: 12, moveId: 44 }, { level: 20, moveId: 41 },
     ],
   },
   {
@@ -204,8 +204,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 60, atk: 80, def: 55, spatk: 75, spdef: 55, spd: 95 },
     ability: 'Motor Drive — boosts Speed when hit by Electric', catchRate: 75, rarity: 'uncommon',
     learnset: [
-      { level: 1, moveId: 40 }, { level: 1, moveId: 41 }, { level: 20, moveId: 43 },
-      { level: 28, moveId: 44 }, { level: 38, moveId: 42 },
+      { level: 21, moveId: 140 }, { level: 28, moveId: 141 },
+      { level: 36, moveId: 42 }, { level: 44, moveId: 144 },
     ],
   },
   {
@@ -216,7 +216,7 @@ export const CREATURES: CreatureData[] = [
     evolutionLevel: 25, evolvesInto: 21,
     learnset: [
       { level: 1, moveId: 1 }, { level: 1, moveId: 30 }, { level: 6, moveId: 5 },
-      { level: 12, moveId: 31 }, { level: 20, moveId: 34 }, { level: 30, moveId: 33 },
+      { level: 12, moveId: 31 }, { level: 20, moveId: 34 },
     ],
   },
   {
@@ -225,8 +225,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 70, atk: 70, def: 80, spatk: 80, spdef: 70, spd: 50 },
     ability: 'Thorn Coat — damages attackers on contact', catchRate: 75, rarity: 'uncommon',
     learnset: [
-      { level: 1, moveId: 30 }, { level: 1, moveId: 53 }, { level: 25, moveId: 54 },
-      { level: 34, moveId: 33 }, { level: 44, moveId: 32 },
+      { level: 25, moveId: 153 }, { level: 34, moveId: 33 },
+      { level: 44, moveId: 151 }, { level: 50, moveId: 32 },
     ],
   },
   {
@@ -237,7 +237,7 @@ export const CREATURES: CreatureData[] = [
     evolutionLevel: 28, evolvesInto: 23,
     learnset: [
       { level: 1, moveId: 1 }, { level: 1, moveId: 50 }, { level: 6, moveId: 54 },
-      { level: 12, moveId: 51 }, { level: 22, moveId: 53 }, { level: 32, moveId: 52 },
+      { level: 12, moveId: 51 }, { level: 22, moveId: 53 },
     ],
   },
   {
@@ -246,8 +246,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 75, atk: 80, def: 85, spatk: 45, spdef: 70, spd: 55 },
     ability: 'Sturdy — survives a KO hit with 1 HP', catchRate: 75, rarity: 'uncommon',
     learnset: [
-      { level: 1, moveId: 50 }, { level: 1, moveId: 53 }, { level: 28, moveId: 54 },
-      { level: 36, moveId: 51 }, { level: 46, moveId: 52 },
+      { level: 29, moveId: 150 }, { level: 36, moveId: 152 },
+      { level: 40, moveId: 153 }, { level: 46, moveId: 151 },
     ],
   },
   {
@@ -257,8 +257,8 @@ export const CREATURES: CreatureData[] = [
     ability: 'Swift Swim — doubles Speed in rain', catchRate: 120, rarity: 'uncommon',
     evolutionLevel: 30, evolvesInto: 25,
     learnset: [
-      { level: 1, moveId: 20 }, { level: 1, moveId: 60 }, { level: 8, moveId: 21 },
-      { level: 14, moveId: 61 }, { level: 22, moveId: 22 }, { level: 32, moveId: 62 },
+      { level: 1, moveId: 20 }, { level: 1, moveId: 60 }, { level: 8, moveId: 120 },
+      { level: 14, moveId: 61 }, { level: 22, moveId: 22 },
     ],
   },
   {
@@ -267,8 +267,8 @@ export const CREATURES: CreatureData[] = [
     baseStats: { hp: 70, atk: 60, def: 60, spatk: 95, spdef: 75, spd: 95 },
     ability: 'Swift Swim — doubles Speed in rain', catchRate: 45, rarity: 'rare',
     learnset: [
-      { level: 1, moveId: 20 }, { level: 1, moveId: 61 }, { level: 30, moveId: 62 },
-      { level: 38, moveId: 23 }, { level: 46, moveId: 82 },
+      { level: 30, moveId: 161 }, { level: 38, moveId: 23 },
+      { level: 46, moveId: 121 }, { level: 50, moveId: 62 },
     ],
   },
   {
@@ -279,6 +279,7 @@ export const CREATURES: CreatureData[] = [
     learnset: [
       { level: 1, moveId: 10 }, { level: 1, moveId: 50 }, { level: 10, moveId: 14 },
       { level: 18, moveId: 51 }, { level: 28, moveId: 12 }, { level: 38, moveId: 52 },
+      { level: 46, moveId: 111 }, { level: 54, moveId: 151 },
     ],
   },
   {
@@ -289,6 +290,7 @@ export const CREATURES: CreatureData[] = [
     learnset: [
       { level: 1, moveId: 70 }, { level: 1, moveId: 50 }, { level: 10, moveId: 73 },
       { level: 20, moveId: 53 }, { level: 30, moveId: 71 }, { level: 40, moveId: 72 },
+      { level: 48, moveId: 174 }, { level: 56, moveId: 151 },
     ],
   },
   {
@@ -299,27 +301,29 @@ export const CREATURES: CreatureData[] = [
     learnset: [
       { level: 1, moveId: 80 }, { level: 1, moveId: 10 }, { level: 10, moveId: 83 },
       { level: 20, moveId: 81 }, { level: 30, moveId: 13 }, { level: 40, moveId: 82 },
+      { level: 48, moveId: 111 }, { level: 56, moveId: 180 },
     ],
   },
   {
-    id: 29, name: 'Frostpine', type: ['Nature'],
+    id: 29, name: 'Frostpine', type: ['Ice'],
     description: 'A pine tree creature encrusted in permafrost and icicles.',
     baseStats: { hp: 55, atk: 50, def: 65, spatk: 55, spdef: 70, spd: 45 },
     ability: 'Snow Cloak — evasion raised in snow', catchRate: 120, rarity: 'uncommon',
     evolutionLevel: 32, evolvesInto: 30,
     learnset: [
-      { level: 1, moveId: 20 }, { level: 1, moveId: 54 }, { level: 1, moveId: 31 }, { level: 10, moveId: 21 },
-      { level: 20, moveId: 32 }, { level: 30, moveId: 35 }, { level: 40, moveId: 33 },
+      { level: 1, moveId: 190 }, { level: 1, moveId: 54 }, { level: 8, moveId: 194 },
+      { level: 16, moveId: 193 }, { level: 24, moveId: 195 },
     ],
   },
   {
-    id: 30, name: 'Glacivern', type: ['Water', 'Nature'],
+    id: 30, name: 'Glacivern', type: ['Ice', 'Dragon'],
     description: 'A frozen dragon that rides blizzards through glacial mountain ranges.',
     baseStats: { hp: 80, atk: 65, def: 90, spatk: 75, spdef: 95, spd: 55 },
     ability: 'Ice Body — restores HP in snow', catchRate: 45, rarity: 'rare',
     learnset: [
-      { level: 1, moveId: 35 }, { level: 1, moveId: 61 }, { level: 32, moveId: 53 },
-      { level: 40, moveId: 22 }, { level: 50, moveId: 82 },
+      { level: 33, moveId: 191 }, { level: 40, moveId: 192 },
+      { level: 44, moveId: 203 }, { level: 48, moveId: 196 },
+      { level: 55, moveId: 197 }, { level: 58, moveId: 206 },
     ],
   },
 ];
@@ -330,4 +334,39 @@ export function getCreatureById(id: number): CreatureData | undefined {
 
 export function getStarterCreatures(): CreatureData[] {
   return CREATURES.filter(c => c.isStarter);
+}
+
+/**
+ * Returns a creature's full learnable move pool: its own learnset PLUS every
+ * pre-evolution's learnset it passed through on the way to its current form.
+ *
+ * This is what makes evolving not erase what a lower-stage creature could
+ * already learn — e.g. if Embrix could learn Ember at level 1, Inferox and
+ * Pyroar can still learn (or be taught, via the Move Reminder) Ember too,
+ * exactly like evolution families work in the mainline games. Levels are
+ * preserved as-is rather than collapsed, so a creature that evolved early
+ * can still "catch up" on a pre-evolution move it hadn't reached yet.
+ *
+ * Each evolution stage's own data only needs to list the NEW moves it gains
+ * — no need to hand-copy the whole ancestor chain into every stage.
+ */
+export function getFullLearnset(dataId: number): LearnableMove[] {
+  const chain: CreatureData[] = [];
+  let current = getCreatureById(dataId);
+  while (current) {
+    chain.unshift(current);
+    const pre = CREATURES.find(c => c.evolvesInto === current!.id);
+    current = pre;
+  }
+
+  const combined: LearnableMove[] = [];
+  for (const stage of chain) combined.push(...stage.learnset);
+
+  const seen = new Set<string>();
+  return combined.filter(l => {
+    const key = `${l.level}-${l.moveId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

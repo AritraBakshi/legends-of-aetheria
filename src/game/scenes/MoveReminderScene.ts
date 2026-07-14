@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { gameState } from '../GameState';
-import { getCreatureById } from '../data/creatures';
+import { getCreatureById, getFullLearnset } from '../data/creatures';
 import { getMoveById } from '../data/moves';
+import { createScrollArea, type ScrollAreaHandle } from './scrollArea';
 
 export class MoveReminderScene extends Phaser.Scene {
   constructor() { super('MoveReminder'); }
@@ -11,6 +12,8 @@ export class MoveReminderScene extends Phaser.Scene {
     const pw = 440;
 
     const close = () => {
+      scrollHandle?.destroy();
+      scrollHandle = null;
       const ow = this.scene.get('Overworld') as Phaser.Scene & { onMoveReminderClosed?: () => void };
       ow?.onMoveReminderClosed?.();
       this.scene.stop('MoveReminder');
@@ -27,6 +30,10 @@ export class MoveReminderScene extends Phaser.Scene {
     let panelGfx: Phaser.GameObjects.Graphics | null = null;
     let titleTxt: Phaser.GameObjects.Text | null = null;
     let geo = { sx: 0, sy: 0, pw, ph: 0 };
+
+    // The move list's scroll camera/rows, if a list is currently long enough
+    // to need one. Torn down whenever we redraw or close.
+    let scrollHandle: ScrollAreaHandle | null = null;
 
     const drawPanel = (ph: number) => {
       panelGfx?.destroy();
@@ -46,6 +53,8 @@ export class MoveReminderScene extends Phaser.Scene {
     };
 
     const clearRows = () => {
+      scrollHandle?.destroy();
+      scrollHandle = null;
       this.children.list
         .filter(c => (c as Phaser.GameObjects.GameObject).getData('mrRow'))
         .forEach(c => c.destroy());
@@ -95,79 +104,101 @@ export class MoveReminderScene extends Phaser.Scene {
     const renderMoveList = (ci: number) => {
       const creature = gameState.party[ci];
       const data = getCreatureById(creature.dataId)!;
-      const learnables = data.learnset.filter(l => l.level <= creature.level);
+      const learnables = getFullLearnset(creature.dataId).filter(l => l.level <= creature.level);
 
       const rowH = 34;
       const headerH = 56; // extra room for the subtitle line
       const footerH = 34;
-      const ph = headerH + Math.max(learnables.length, 1) * rowH + footerH;
+      // Panel height is capped so it can never grow past the screen — the
+      // list area scrolls (and clips) instead of the whole panel just
+      // getting taller and taller with more inherited/learned moves.
+      const maxPanelH = H - 32;
+      const naturalH = headerH + Math.max(learnables.length, 1) * rowH + footerH;
+      const ph = Math.min(naturalH, maxPanelH);
+      const listH = ph - headerH - footerH;
 
       clearRows();
       drawPanel(ph);
       const { sx, sy, pw } = geo;
 
-      this.add.text(sx + pw / 2, sy + 36, `${data.name} — pick a move to remember:`, {
+      const subtitleTxt = this.add.text(sx + pw / 2, sy + 36, `${data.name} — pick a move to remember:`, {
         fontSize: '11px', fontFamily: 'monospace', color: '#a0c0e0',
       }).setOrigin(0.5, 0).setData('mrRow', true);
 
-      learnables.forEach((entry, i) => {
-        const move = getMoveById(entry.moveId);
-        if (!move) return;
-        const already = creature.moves.some(m => m.moveId === entry.moveId);
-        const ry = sy + headerH + i * rowH;
-
-        const rb = this.add.graphics().setData('mrRow', true);
-        rb.fillStyle(already ? 0x0a1a10 : 0x0e1e3a).fillRoundedRect(sx + 10, ry, pw - 20, 28, 4);
-        rb.lineStyle(1, already ? 0x206040 : 0x304060).strokeRoundedRect(sx + 10, ry, pw - 20, 28, 4);
-
-        this.add.text(sx + 22, ry + 7, move.name, {
-          fontSize: '12px', fontFamily: 'monospace', color: already ? '#40c060' : '#c0e0ff',
-        }).setData('mrRow', true);
-        this.add.text(sx + 185, ry + 7, `Lv.${entry.level}`, {
-          fontSize: '10px', fontFamily: 'monospace', color: '#607090',
-        }).setData('mrRow', true);
-        this.add.text(sx + 245, ry + 7, move.type, {
-          fontSize: '10px', fontFamily: 'monospace', color: '#8090a0',
-        }).setData('mrRow', true);
-        this.add.text(sx + pw - 14, ry + 7, already ? '✓ Known' : 'TEACH', {
-          fontSize: '11px', fontFamily: 'monospace',
-          color: already ? '#206040' : '#ffffff',
-          backgroundColor: already ? '#0a2010' : '#204080',
-          padding: { x: 4, y: 1 },
-        }).setOrigin(1, 0).setData('mrRow', true);
-
-        if (!already) {
-          this.add.rectangle(sx + pw / 2, ry + 14, pw - 20, 28, 0, 0)
-            .setInteractive({ useHandCursor: true })
-            .setData('mrRow', true)
-            .on('pointerdown', () => {
-              if (creature.moves.length < 4) {
-                creature.moves.push({ moveId: entry.moveId, pp: move.pp, maxPp: move.pp });
-              } else {
-                creature.moves.shift();
-                creature.moves.push({ moveId: entry.moveId, pp: move.pp, maxPp: move.pp });
-              }
-              renderMoveList(ci);
-            });
-        }
-      });
-
-      this.add.text(sx + 18, sy + ph - 12, '◀ Back', {
+      const backBtn = this.add.text(sx + 18, sy + ph - 12, '◀ Back', {
         fontSize: '12px', fontFamily: 'monospace', color: '#80d0ff',
         backgroundColor: '#0e1830', padding: { x: 4, y: 2 },
       }).setOrigin(0, 1).setInteractive({ useHandCursor: true })
         .setData('mrRow', true)
         .on('pointerdown', renderCreatureList);
 
-      this.add.text(sx + pw - 18, sy + ph - 12, '[ Close ]', {
+      const closeBtn = this.add.text(sx + pw - 18, sy + ph - 12, '[ Close ]', {
         fontSize: '12px', fontFamily: 'monospace', color: '#ff8080',
       }).setOrigin(1, 1).setInteractive({ useHandCursor: true })
         .setData('mrRow', true)
         .on('pointerdown', close);
+
+      if (learnables.length === 0) return;
+
+      // ── Scrollable, clipped move rows ──────────────────────────────────────
+      scrollHandle = createScrollArea(
+        this, sx + 10, sy + headerH, pw - 20, listH,
+        learnables.length * rowH,
+        [dim, panelGfx!, titleTxt!, subtitleTxt, backBtn, closeBtn],
+        { rowStep: rowH },
+      );
+      const rows = scrollHandle.container;
+
+      learnables.forEach((entry, i) => {
+        const move = getMoveById(entry.moveId);
+        if (!move) return;
+        const already = creature.moves.some(m => m.moveId === entry.moveId);
+        const ry = i * rowH;
+
+        const rb = this.add.graphics();
+        rb.fillStyle(already ? 0x0a1a10 : 0x0e1e3a).fillRoundedRect(0, ry, pw - 20, 28, 4);
+        rb.lineStyle(1, already ? 0x206040 : 0x304060).strokeRoundedRect(0, ry, pw - 20, 28, 4);
+        rows.add(rb);
+
+        rows.add(this.add.text(12, ry + 7, move.name, {
+          fontSize: '12px', fontFamily: 'monospace', color: already ? '#40c060' : '#c0e0ff',
+        }));
+        rows.add(this.add.text(175, ry + 7, `Lv.${entry.level}`, {
+          fontSize: '10px', fontFamily: 'monospace', color: '#607090',
+        }));
+        rows.add(this.add.text(235, ry + 7, move.type, {
+          fontSize: '10px', fontFamily: 'monospace', color: '#8090a0',
+        }));
+        rows.add(this.add.text(pw - 34, ry + 7, already ? '✓ Known' : 'TEACH', {
+          fontSize: '11px', fontFamily: 'monospace',
+          color: already ? '#206040' : '#ffffff',
+          backgroundColor: already ? '#0a2010' : '#204080',
+          padding: { x: 4, y: 1 },
+        }).setOrigin(1, 0));
+
+        if (!already) {
+          const hit = this.add.rectangle((pw - 20) / 2, ry + 14, pw - 20, 28, 0, 0)
+            .setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', () => {
+            if (creature.moves.length < 4) {
+              creature.moves.push({ moveId: entry.moveId, pp: move.pp, maxPp: move.pp });
+            } else {
+              creature.moves.shift();
+              creature.moves.push({ moveId: entry.moveId, pp: move.pp, maxPp: move.pp });
+            }
+            renderMoveList(ci);
+          });
+          rows.add(hit);
+        }
+      });
     };
 
     renderCreatureList();
     this.input.keyboard!.once('keydown-ESC', close);
+
+    // Belt-and-suspenders: if the scene stops any other way, still clean up
+    // the scroll camera/listeners rather than leaking them.
+    this.events.once('shutdown', () => { scrollHandle?.destroy(); scrollHandle = null; });
   }
 }
 

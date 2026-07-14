@@ -9,7 +9,7 @@ import { TYPE_COLORS } from '../data/typeChart';
 import {
   calcDamage, isFainted, calcExpGain, applyExpGain,
   checkEvolution, applyStatusDamage, tryCapture, createActiveCreature,
-  learnNewMoves,
+  learnNewMoves, sanitizeMoves,
   type BattleCreature,
 } from '../systems/BattleSystem';
 
@@ -88,6 +88,7 @@ export class BattleScene extends Phaser.Scene {
     this.add.image(W / 2, H / 2, 'battle_bg').setDisplaySize(W, H);
 
     // Enemy creature
+    sanitizeMoves(this.config.wildCreature);
     this.enemyBC = {
       creature: this.config.wildCreature,
       stages: { atk: 0, def: 0, spatk: 0, spdef: 0, spd: 0, acc: 0, eva: 0 },
@@ -97,6 +98,7 @@ export class BattleScene extends Phaser.Scene {
     // Player creature (first in party with HP)
     const playerCreature = gameState.party.find(c => c.currentHp > 0);
     if (!playerCreature) { this.endBattle('blackout'); return; }
+    sanitizeMoves(playerCreature);
     this.playerBC = {
       creature: playerCreature,
       stages: { atk: 0, def: 0, spatk: 0, spdef: 0, spd: 0, acc: 0, eva: 0 },
@@ -508,9 +510,17 @@ export class BattleScene extends Phaser.Scene {
   /** Perform the creature switch, then rebuild move menu */
   private switchInCreature(newCreature: ActiveCreature, fromFaint: boolean) {
     this.canInput = false;
+    sanitizeMoves(newCreature);
     this.playerBC.creature = newCreature;
     this.playerBC.stages = { atk: 0, def: 0, spatk: 0, spdef: 0, spd: 0, acc: 0, eva: 0 };
     this.playerBC.confusionTurns = 0;
+
+    // Hide the Fight menu explicitly — if it was left open (visible=true)
+    // from before the player opened the party screen, it would otherwise
+    // still be flagged visible here and pop back up overlapping the
+    // "Go, X!" message below, since rebuildMoveButtons() runs before that
+    // message is shown.
+    this.moveMenu.setVisible(false);
 
     // Update sprite & HUD
     this.playerSprite.setTexture(`creature_${newCreature.dataId}_back`)
@@ -908,6 +918,7 @@ export class BattleScene extends Phaser.Scene {
     // Update the live reference so doEnemyAttack() uses the correct name
     this.config.wildCreatureData = next.data;
 
+    sanitizeMoves(next.creature);
     this.enemyBC = {
       creature: next.creature,
       stages: { atk: 0, def: 0, spatk: 0, spdef: 0, spd: 0, acc: 0, eva: 0 },

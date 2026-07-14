@@ -1,20 +1,22 @@
 import type { CreatureType } from './types';
 
-const TYPES: CreatureType[] = ['Normal', 'Fire', 'Water', 'Nature', 'Electric', 'Earth', 'Wind', 'Shadow', 'Light'];
+const TYPES: CreatureType[] = ['Normal', 'Fire', 'Water', 'Nature', 'Electric', 'Earth', 'Wind', 'Shadow', 'Light', 'Ice', 'Dragon'];
 
 // typeChart[attacker][defender] = multiplier
-// 0=Normal,1=Fire,2=Water,3=Nature,4=Electric,5=Earth,6=Wind,7=Shadow,8=Light
+// 0=Normal,1=Fire,2=Water,3=Nature,4=Electric,5=Earth,6=Wind,7=Shadow,8=Light,9=Ice,10=Dragon
 const RAW_CHART: number[][] = [
-  // vs Nor  Fir  Wat  Nat  Ele  Ear  Win  Sha  Lig
-  [    1,   1,   1,   1,   1,   1,   1,   1,   1 ], // Normal
-  [    1, 0.5, 0.5,   2,   1,   2,   1,   1, 0.5 ], // Fire
-  [    1,   2, 0.5, 0.5,   1,   2,   1,   1,   1 ], // Water
-  [    1, 0.5,   2, 0.5,   1,   2,   1,   1,   2 ], // Nature
-  [    1,   1,   2,   1, 0.5, 0.5,   2,   1,   1 ], // Electric
-  [    1, 0.5,   1,   1,   2, 0.5, 0.5,   2,   1 ], // Earth
-  [    1,   1,   1,   2,   2, 0.5, 0.5,   1,   1 ], // Wind
-  [    1,   1,   1,   1,   1,   2,   1, 0.5,   2 ], // Shadow
-  [    1,   2, 0.5,   2,   1,   1,   1,   2, 0.5 ], // Light
+  // vs Nor  Fir  Wat  Nat  Ele  Ear  Win  Sha  Lig  Ice  Dra
+  [    1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1 ], // Normal
+  [    1, 0.5, 0.5,   2,   1,   2,   1,   1, 0.5,   2,   1 ], // Fire
+  [    1,   2, 0.5, 0.5,   1,   2,   1,   1,   1,   1,   1 ], // Water
+  [    1, 0.5,   2, 0.5,   1,   2,   1,   1,   2,   1,   1 ], // Nature
+  [    1,   1,   2,   1, 0.5, 0.5,   2,   1,   1,   1,   1 ], // Electric
+  [    1, 0.5,   1,   1,   2, 0.5, 0.5,   2,   1,   1,   1 ], // Earth
+  [    1,   1,   1,   2,   2, 0.5, 0.5,   1,   1,   1,   1 ], // Wind
+  [    1,   1,   1,   1,   1,   2,   1, 0.5,   2,   1,   1 ], // Shadow
+  [    1,   2, 0.5,   2,   1,   1,   1,   2, 0.5,   1,   2 ], // Light
+  [    1, 0.5, 0.5,   2,   1,   2,   2,   1,   1, 0.5,   2 ], // Ice
+  [    1,   1,   1,   1,   1,   1,   1,   1, 0.5,   1,   2 ], // Dragon
 ];
 
 export function getTypeMultiplier(attackerType: CreatureType, defenderTypes: CreatureType[]): number {
@@ -47,4 +49,6 @@ export const TYPE_COLORS: Record<CreatureType, number> = {
   Wind:     0xa890f0,
   Shadow:   0x705898,
   Light:    0xffe066,
+  Ice:      0x98d8d8,
+  Dragon:   0x7038f8,
 };

@@ -1,7 +1,7 @@
 import type { ActiveCreature, Move, StatusEffect } from '../data/types';
 import { getMoveById } from '../data/moves';
 import { getTypeMultiplier } from '../data/typeChart';
-import { getCreatureById } from '../data/creatures';
+import { getCreatureById, getFullLearnset } from '../data/creatures';
 
 export function calcMaxHp(baseHp: number, level: number): number {
   return Math.floor((2 * baseHp * level) / 100 + level + 10);
@@ -15,11 +15,34 @@ export function calcExpForLevel(level: number): number {
   return Math.floor((level * level * level * 4) / 5);
 }
 
+/**
+ * Repairs a creature's move list in place, replacing any slot whose moveId
+ * no longer resolves via getMoveById with a safe fallback (Tackle).
+ *
+ * This can happen to creatures that existed in a save file from before a
+ * moves.ts data change (an id renamed/removed, or just old debug/test
+ * data) — without this, such a slot silently disappears from the battle
+ * move menu instead of showing something, which can leave a creature with
+ * fewer usable moves than it should have.
+ */
+export function sanitizeMoves(creature: ActiveCreature): void {
+  for (const slot of creature.moves) {
+    if (!getMoveById(slot.moveId)) {
+      slot.moveId = 1; // Tackle — always exists, always safe
+      slot.pp = 35;
+      slot.maxPp = 35;
+    }
+  }
+  if (creature.moves.length === 0) {
+    creature.moves.push({ moveId: 1, pp: 35, maxPp: 35 });
+  }
+}
+
 export function createActiveCreature(creatureId: number, level: number): ActiveCreature {
   const data = getCreatureById(creatureId);
   if (!data) throw new Error(`Unknown creature ID: ${creatureId}`);
   const maxHp = calcMaxHp(data.baseStats.hp, level);
-  const moves = data.learnset
+  const moves = getFullLearnset(creatureId)
     .filter(m => m.level <= level)
     .sort((a, b) => b.level - a.level)
     .slice(0, 4)
@@ -79,11 +102,22 @@ export function calcDamage(
   defender: BattleCreature,
   move: Move
 ): DamageResult {
-  if (move.category === 'Status' || move.power === 0) return { damage: 0, typeMultiplier: 1, isCrit: false, effectivenessMsg: '' };
+  if (move.category === 'Status') return { damage: 0, typeMultiplier: 1, isCrit: false, effectivenessMsg: '' };
+
+  const defCreatureData = getCreatureById(defender.creature.dataId)!;
+
+  // Fixed-damage moves (e.g. Sonic Boom) ignore stats/STAB/crit entirely,
+  // but are still blocked by a type immunity (0x multiplier).
+  if (move.fixedDamage) {
+    const fixedTypeMult = getTypeMultiplier(move.type, defCreatureData.type);
+    if (fixedTypeMult === 0) return { damage: 0, typeMultiplier: 0, isCrit: false, effectivenessMsg: 'It had no effect...' };
+    return { damage: move.fixedDamage, typeMultiplier: 1, isCrit: false, effectivenessMsg: '' };
+  }
+
+  if (move.power === 0) return { damage: 0, typeMultiplier: 1, isCrit: false, effectivenessMsg: '' };
 
   const level = attacker.creature.level;
   const atkCreatureData = getCreatureById(attacker.creature.dataId)!;
-  const defCreatureData = getCreatureById(defender.creature.dataId)!;
 
   const isPhys = move.category === 'Physical';
   const atk = isPhys ? getEffectiveStat(attacker, 'atk') : getEffectiveStat(attacker, 'spatk');
@@ -167,9 +201,8 @@ export function isFainted(creature: ActiveCreature): boolean {
 }
 
 export function learnNewMoves(creature: ActiveCreature): number[] {
-  const data = getCreatureById(creature.dataId)!;
   const currentMoveIds = creature.moves.map(m => m.moveId);
-  return data.learnset
+  return getFullLearnset(creature.dataId)
     .filter(m => m.level === creature.level && !currentMoveIds.includes(m.moveId))
     .map(m => m.moveId);
 }
