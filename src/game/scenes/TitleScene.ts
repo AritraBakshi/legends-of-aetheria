@@ -186,11 +186,15 @@ export class TitleScene extends Phaser.Scene {
       gameState.mapId = 'oakwind';
       gameState.playerX = 15;
       gameState.playerY = 10;
+      gameState.lastHealMapId = 'oakwind';
+      gameState.lastHealX = 15;
+      gameState.lastHealY = 10;
       gameState.party = [];
       gameState.storage = [];
       gameState.inventory = [{ id: 1, quantity: 5 }, { id: 10, quantity: 3 }];
       gameState.money = 200;
       gameState.flags = {};
+      gameState.counters = {};
       gameState.seenCreatures = new Set();
       gameState.caughtCreatures = new Set();
       gameState.playTime = 0;
@@ -360,7 +364,8 @@ export class TitleScene extends Phaser.Scene {
 
         // Reload after 2 s so the new save is picked up cleanly
         this.time.delayedCall(2000, () => window.location.reload());
-      } catch {
+      } catch (err) {
+        console.error("Import failed:", err);
         setStatus('✗ Invalid save data — check the text and retry.', '#ff4040');
       }
     });

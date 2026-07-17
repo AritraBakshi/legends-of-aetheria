@@ -565,6 +565,13 @@ export class OverworldScene extends Phaser.Scene {
 
     // Nurse: heal
     if (npc.isNurse) {
+      // Record this as the "last healed" spot regardless of whether healing
+      // was actually needed — visiting counts, same as a Pokémon Center
+      // setting your respawn point even on a routine check-in.
+      gameState.lastHealMapId = this.mapData.id;
+      gameState.lastHealX = gameState.playerX;
+      gameState.lastHealY = gameState.playerY;
+
       const hasInjured = gameState.party.some(c =>
         c.currentHp < c.maxHp || c.status || c.moves.some(m => m.pp < m.maxPp)
       );

@@ -11,6 +11,7 @@ import MoveReminderScene from './scenes/MoveReminderScene';
 import LocationBannerScene from './scenes/LocationBannerScene';
 import ConfirmPromptScene from './scenes/ConfirmPromptScene';
 import GuideScene from './scenes/GuideScene';
+import BlackoutScene from './scenes/BlackoutScene';
 
 const BASE_WIDTH = 640;
 const BASE_HEIGHT = 480;
@@ -50,6 +51,7 @@ export function createGame(parent: HTMLElement): Phaser.Game {
       LocationBannerScene,
       ConfirmPromptScene,
       GuideScene,
+      BlackoutScene,
     ],
     input: {
       keyboard: true,

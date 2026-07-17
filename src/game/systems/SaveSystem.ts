@@ -7,6 +7,12 @@ export interface SaveData {
   mapId: string;
   playerX: number;
   playerY: number;
+  /** Where the player last visited a healing Nurse — used to respawn them
+   * there after losing a battle, instead of always Oakwind Village.
+   * Optional so saves from before this feature still load fine. */
+  lastHealMapId?: string;
+  lastHealX?: number;
+  lastHealY?: number;
   party: ActiveCreature[];
   storage: ActiveCreature[];
   inventory: InventoryItem[];

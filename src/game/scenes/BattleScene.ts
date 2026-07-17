@@ -6,6 +6,7 @@ import { getMoveById, FINAL_CRASHOUT_MOVE } from '../data/moves';
 import { getCreatureById } from '../data/creatures';
 import { getItemById } from '../data/items';
 import { TYPE_COLORS } from '../data/typeChart';
+import { MAPS } from '../data/maps';
 import {
   calcDamage, isFainted, calcExpGain, applyExpGain,
   checkEvolution, applyStatusDamage, tryCapture, createActiveCreature,
@@ -41,6 +42,10 @@ export class BattleScene extends Phaser.Scene {
 
   private enemySprite!: Phaser.GameObjects.Image;
   private playerSprite!: Phaser.GameObjects.Image;
+  /** Resting Y position for each sprite (pre-idle-bob-offset), so a switch-in
+   * can reliably reset position after a faint animation moved it. */
+  private enemyBaseY = 0;
+  private playerBaseY = 0;
   private enemyNamePlate!: Phaser.GameObjects.Container;
   private playerNamePlate!: Phaser.GameObjects.Container;
   private enemyHpBar!: Phaser.GameObjects.Graphics;
@@ -111,6 +116,8 @@ export class BattleScene extends Phaser.Scene {
     const enemyY = H * 0.3;
     const playerStartX = W * 0.28;
     const playerY = H * 0.52;
+    this.enemyBaseY = enemyY;
+    this.playerBaseY = playerY;
 
     // Drop shadows
     const enemyShadow = this.add.graphics();
@@ -124,14 +131,7 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({
       targets: this.enemySprite, x: enemyStartX, alpha: 1,
       duration: 420, ease: 'Back.easeOut',
-      onComplete: () => {
-        // Idle float — only animate Y, never touch scale (setDisplaySize already set it)
-        this.tweens.add({
-          targets: [this.enemySprite, enemyShadow],
-          y: `${enemyY - 8}`,
-          duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-        });
-      },
+      onComplete: () => this.startIdleBob(this.enemySprite, enemyShadow, this.enemyBaseY),
     });
 
     // Player sprite — slides in from left, back sprite shown larger
@@ -140,13 +140,7 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({
       targets: this.playerSprite, x: playerStartX, alpha: 1,
       duration: 420, ease: 'Back.easeOut', delay: 180,
-      onComplete: () => {
-        this.tweens.add({
-          targets: this.playerSprite,
-          y: `${playerY - 5}`,
-          duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-        });
-      },
+      onComplete: () => this.startIdleBob(this.playerSprite, null, this.playerBaseY),
     });
 
     // Name plates & HP bars
@@ -525,6 +519,12 @@ export class BattleScene extends Phaser.Scene {
     // Update sprite & HUD
     this.playerSprite.setTexture(`creature_${newCreature.dataId}_back`)
       .setDisplaySize(this.battleSize(newCreature.dataId).player, this.battleSize(newCreature.dataId).player);
+    // The previous creature's faint animation (if any) leaves this sprite
+    // faded out and sunk 40px below its resting position — reset both,
+    // otherwise the newly switched-in creature is invisible until some
+    // unrelated tween (e.g. the next hit-flash) happens to reset alpha.
+    this.playerSprite.setAlpha(1);
+    this.startIdleBob(this.playerSprite, null, this.playerBaseY);
     this.updateHPBar(newCreature, true);
     this.playerLvlText.setText(`Lv.${newCreature.level}`);
     this.playerNameText.setText(this.getPlayerCreatureName());
@@ -608,9 +608,25 @@ export class BattleScene extends Phaser.Scene {
     const move = getMoveById(moveSlot.moveId)!;
     const playerName = this.getPlayerCreatureName();
 
-    this.showMessage(`${playerName} used ${move.name}!`, () => {
-      this.applyMove(this.playerBC, this.enemyBC, move, false);
-    });
+    const statusDmg = applyStatusDamage(this.playerBC.creature);
+    if (statusDmg > 0) {
+      this.updateHPBar(this.playerBC.creature, true);
+      const status = this.playerBC.creature.status;
+      this.showMessage(`${playerName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
+        if (isFainted(this.playerBC.creature)) {
+          this.faintAnimation(this.playerSprite);
+          this.showMessage(`${playerName} fainted!`, () => this.handlePlayerFaint());
+        } else {
+          this.showMessage(`${playerName} used ${move.name}!`, () => {
+            this.applyMove(this.playerBC, this.enemyBC, move, false);
+          });
+        }
+      });
+    } else {
+      this.showMessage(`${playerName} used ${move.name}!`, () => {
+        this.applyMove(this.playerBC, this.enemyBC, move, false);
+      });
+    }
   }
 
   /** Last-resort action when every move is out of PP. Costs no PP itself. */
@@ -621,9 +637,25 @@ export class BattleScene extends Phaser.Scene {
     this.actionMenu.setVisible(false);
 
     const playerName = this.getPlayerCreatureName();
-    this.showMessage(`${playerName} has no moves left and unleashes a Final Crashout!!`, () => {
-      this.applyMove(this.playerBC, this.enemyBC, FINAL_CRASHOUT_MOVE, false);
-    });
+    const statusDmg = applyStatusDamage(this.playerBC.creature);
+    if (statusDmg > 0) {
+      this.updateHPBar(this.playerBC.creature, true);
+      const status = this.playerBC.creature.status;
+      this.showMessage(`${playerName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
+        if (isFainted(this.playerBC.creature)) {
+          this.faintAnimation(this.playerSprite);
+          this.showMessage(`${playerName} fainted!`, () => this.handlePlayerFaint());
+        } else {
+          this.showMessage(`${playerName} has no moves left and unleashes a Final Crashout!!`, () => {
+            this.applyMove(this.playerBC, this.enemyBC, FINAL_CRASHOUT_MOVE, false);
+          });
+        }
+      });
+    } else {
+      this.showMessage(`${playerName} has no moves left and unleashes a Final Crashout!!`, () => {
+        this.applyMove(this.playerBC, this.enemyBC, FINAL_CRASHOUT_MOVE, false);
+      });
+    }
   }
 
   private applyMove(attacker: BattleCreature, defender: BattleCreature, move: Move, isEnemy: boolean) {
@@ -636,19 +668,26 @@ export class BattleScene extends Phaser.Scene {
     }
 
     if (Math.random() * 100 > move.accuracy) {
+      const dodgeSprite = isEnemy ? this.playerSprite : this.enemySprite;
+      this.dodgeAnimation(dodgeSprite);
       this.showMessage(`${attackerName}'s ${move.name} missed!`, () => this.nextTurn(!isEnemy));
       return;
     }
 
     const result = calcDamage(attacker, defender, move);
     const targetSprite = isEnemy ? this.playerSprite : this.enemySprite;
+    const attackerSprite = isEnemy ? this.enemySprite : this.playerSprite;
     const knockDir = isEnemy ? -18 : 18; // enemy knocks left, player knocks right
+
+    // Attacker wind-up: a quick lunge for Physical moves, a charge-glow pulse
+    // for Special ones, so the attacker isn't just standing still.
+    this.lungeAttacker(attackerSprite, isEnemy, move.category === 'Physical');
 
     // Type-colour flash overlay
     const typeColors: Record<string, number> = {
       Fire: 0xff4400, Water: 0x0088ff, Nature: 0x00cc44, Earth: 0xaa7700,
       Wind: 0x88ccff, Shadow: 0x8800cc, Light: 0xffee00, Electric: 0xffcc00,
-      Normal: 0xffffff,
+      Normal: 0xffffff, Ice: 0x99eeff, Dragon: 0x7038f8,
     };
     const flashCol = typeColors[move.type] ?? 0xffffff;
     const flash = this.add.graphics().setDepth(50);
@@ -665,10 +704,15 @@ export class BattleScene extends Phaser.Scene {
       onComplete: () => { targetSprite.x = origX; targetSprite.setAlpha(1); },
     });
 
+    // Screen shake, scaled up for crits/big hits so a heavy blow actually feels heavy
+    const shakeIntensity = result.isCrit ? 0.018 : Math.min(0.014, 0.004 + result.damage / 4000);
+    this.cameras.main.shake(result.isCrit ? 220 : 140, shakeIntensity);
+
     defender.creature.currentHp = Math.max(0, defender.creature.currentHp - result.damage);
     this.updateHPBar(defender.creature, isEnemy); // isEnemy=true → player bar; isEnemy=false → enemy bar
 
     let msg = result.effectivenessMsg ?? `Dealt ${result.damage} damage!`;
+    if (result.isCrit) msg = `Critical hit! ${msg}`;
 
     if (move.effect?.type === 'status' && move.effect.chance && Math.random() * 100 < (move.effect.chance ?? 0)) {
       if (!defender.creature.status && move.effect.status) {
@@ -679,6 +723,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.showMessage(msg, () => {
       if (isFainted(defender.creature)) {
+        this.faintAnimation(targetSprite);
         const faintedName = isEnemy ? this.getPlayerCreatureName() : this.config.wildCreatureData.name;
         this.showMessage(`${faintedName} fainted!`, () => {
           if (isEnemy) this.handlePlayerFaint();
@@ -693,6 +738,7 @@ export class BattleScene extends Phaser.Scene {
         this.updateHPBar(attacker.creature, !isEnemy);
         this.showMessage(`${attackerName} is hit by the recoil! (-${recoilAmt} HP)`, () => {
           if (isFainted(attacker.creature)) {
+            this.faintAnimation(attackerSprite);
             this.showMessage(`${attackerName} fainted from the recoil!`, () => {
               if (isEnemy) this.handleEnemyFaint();
               else this.handlePlayerFaint();
@@ -711,32 +757,124 @@ export class BattleScene extends Phaser.Scene {
   private applyStatusMove(attacker: BattleCreature, defender: BattleCreature, move: Move, isEnemy: boolean) {
     const attackerName = isEnemy ? this.config.wildCreatureData.name : this.getPlayerCreatureName();
     const defenderName = isEnemy ? this.getPlayerCreatureName() : this.config.wildCreatureData.name;
+    const attackerSprite = isEnemy ? this.enemySprite : this.playerSprite;
+    const defenderSprite = isEnemy ? this.playerSprite : this.enemySprite;
     let msg = '';
 
     if (move.effect?.type === 'stat') {
-      const target = move.effect.target === 'self' ? attacker : defender;
-      const targetName = move.effect.target === 'self' ? attackerName : defenderName;
+      const isSelf = move.effect.target === 'self';
+      const target = isSelf ? attacker : defender;
+      const targetName = isSelf ? attackerName : defenderName;
+      const targetSprite = isSelf ? attackerSprite : defenderSprite;
       const stat = move.effect.stat!;
       const stages = move.effect.stages!;
       target.stages[stat] = Math.max(-6, Math.min(6, (target.stages[stat] ?? 0) + stages));
       const dir = stages > 0 ? 'rose' : 'fell';
       const amount = Math.abs(stages) > 1 ? ' sharply' : '';
       msg = `${targetName}'s ${stat.toUpperCase()} ${dir}${amount}!`;
+      this.statPulse(targetSprite, stages > 0);
     } else if (move.effect?.type === 'heal') {
       const healAmt = Math.floor(attacker.creature.maxHp * (move.effect.healPercent ?? 50) / 100);
       attacker.creature.currentHp = Math.min(attacker.creature.maxHp, attacker.creature.currentHp + healAmt);
       this.updateHPBar(attacker.creature, !isEnemy);
       msg = `${attackerName} restored ${healAmt} HP!`;
+      this.healSparkle(attackerSprite);
     } else if (move.effect?.type === 'status' && move.effect.status) {
       if (!defender.creature.status) {
         defender.creature.status = move.effect.status;
         msg = `${defenderName} is now ${move.effect.status}!`;
+        this.statusPulse(defenderSprite, move.effect.status);
       } else {
         msg = `${defenderName} is already affected!`;
       }
     }
 
     this.showMessage(msg || `${attackerName} used ${move.name}!`, () => this.nextTurn(!isEnemy));
+  }
+
+  // ── ANIMATION HELPERS ────────────────────────────────────────────────────────
+  /** Starts (or restarts) the gentle up/down idle float for a battle sprite. */
+  private startIdleBob(sprite: Phaser.GameObjects.Image, shadow: Phaser.GameObjects.Graphics | null, baseY: number) {
+    this.tweens.killTweensOf(shadow ? [sprite, shadow] : sprite);
+    sprite.y = baseY;
+    this.tweens.add({
+      targets: shadow ? [sprite, shadow] : sprite,
+      y: baseY - 8,
+      duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+  }
+
+  /** Quick forward-and-back dash for Physical moves; a brief scale-pulse "charge" for Special ones. */
+  private lungeAttacker(sprite: Phaser.GameObjects.Image, isEnemy: boolean, isPhysical: boolean) {
+    const dir = isEnemy ? -1 : 1; // player lunges right (toward enemy), enemy lunges left
+    if (isPhysical) {
+      const origX = sprite.x;
+      this.tweens.add({
+        targets: sprite, x: origX + dir * 22,
+        duration: 90, yoyo: true, ease: 'Quad.easeOut',
+        onComplete: () => { sprite.x = origX; },
+      });
+    } else {
+      this.tweens.add({
+        targets: sprite, scaleX: sprite.scaleX * 1.08, scaleY: sprite.scaleY * 1.08,
+        duration: 110, yoyo: true, ease: 'Sine.easeInOut',
+      });
+    }
+  }
+
+  /** Sidestep dodge when a move misses. */
+  private dodgeAnimation(sprite: Phaser.GameObjects.Image) {
+    const origX = sprite.x;
+    this.tweens.add({
+      targets: sprite, x: origX + 14, duration: 80, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
+      onComplete: () => { sprite.x = origX; },
+    });
+  }
+
+  /** Green upward pulse for a stat boost, red downward pulse for a stat drop. */
+  private statPulse(sprite: Phaser.GameObjects.Image, isBoost: boolean) {
+    const tint = isBoost ? 0x60ff90 : 0xff6060;
+    const origY = sprite.y;
+    sprite.setTint(tint).setTintMode(Phaser.TintModes.FILL);
+    this.tweens.add({
+      targets: sprite, y: origY + (isBoost ? -10 : 8),
+      duration: 160, yoyo: true, ease: 'Sine.easeInOut',
+      onComplete: () => { sprite.y = origY; sprite.clearTint(); },
+    });
+  }
+
+  /** Soft green sparkle-flash for healing. */
+  private healSparkle(sprite: Phaser.GameObjects.Image) {
+    sprite.setTint(0x80ffa0).setTintMode(Phaser.TintModes.FILL);
+    this.tweens.add({
+      targets: sprite, alpha: 0.6,
+      duration: 140, yoyo: true, repeat: 1,
+      onComplete: () => { sprite.setAlpha(1); sprite.clearTint(); },
+    });
+  }
+
+  /** Colour-coded pulse when a status condition is inflicted. */
+  private statusPulse(sprite: Phaser.GameObjects.Image, status: string) {
+    const colors: Record<string, number> = {
+      burn: 0xff8020, poison: 0xa040d0, paralysis: 0xffe030,
+      sleep: 0x6080ff, freeze: 0x90e0ff, confusion: 0xff70c0,
+    };
+    const tint = colors[status] ?? 0xffffff;
+    sprite.setTint(tint).setTintMode(Phaser.TintModes.FILL);
+    this.tweens.add({
+      targets: sprite, alpha: 0.4,
+      duration: 130, yoyo: true, repeat: 2,
+      onComplete: () => { sprite.setAlpha(1); sprite.clearTint(); },
+    });
+  }
+
+  /** Fade-and-sink animation played the moment a creature is confirmed fainted. */
+  private faintAnimation(sprite: Phaser.GameObjects.Image) {
+    this.tweens.killTweensOf(sprite); // stop the idle bob fighting over `.y`
+    this.tweens.add({
+      targets: sprite, y: sprite.y + 40, alpha: 0,
+      duration: 500, ease: 'Cubic.easeIn',
+    });
   }
 
   // ── TURN FLOW ─────────────────────────────────────────────────────────────────
@@ -758,6 +896,7 @@ export class BattleScene extends Phaser.Scene {
         const status = this.enemyBC.creature.status;
         this.showMessage(`${enemyName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
           if (isFainted(this.enemyBC.creature)) {
+            this.faintAnimation(this.enemySprite);
             this.showMessage(`${enemyName} fainted!`, () => this.handleEnemyFaint());
           } else {
             this.showMessage(`${enemyName} has no moves left and unleashes a Final Crashout!!`, () => {
@@ -784,6 +923,7 @@ export class BattleScene extends Phaser.Scene {
       const status = this.enemyBC.creature.status;
       this.showMessage(`${enemyName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
         if (isFainted(this.enemyBC.creature)) {
+          this.faintAnimation(this.enemySprite);
           this.showMessage(`${enemyName} fainted!`, () => this.handleEnemyFaint());
         } else {
           this.doEnemyAttack(move);
@@ -928,7 +1068,12 @@ export class BattleScene extends Phaser.Scene {
     // Update enemy sprite (animate it sliding in)
     this.enemySprite.setAlpha(0).setTexture(`creature_${next.data.id}`)
       .setDisplaySize(this.battleSize(next.data.id).enemy, this.battleSize(next.data.id).enemy);
-    this.tweens.add({ targets: this.enemySprite, alpha: 1, duration: 400 });
+    this.tweens.killTweensOf(this.enemySprite); // stop any leftover faint tween fighting this one
+    this.enemySprite.y = this.enemyBaseY;
+    this.tweens.add({
+      targets: this.enemySprite, alpha: 1, duration: 400,
+      onComplete: () => this.startIdleBob(this.enemySprite, null, this.enemyBaseY),
+    });
 
     // Update enemy HUD text + type badge
     this.enemyNameText?.setText(next.data.name);
@@ -1068,9 +1213,9 @@ export class BattleScene extends Phaser.Scene {
   private endBattle(result: string) {
     if (result === 'blackout') {
       gameState.party.forEach(c => { c.currentHp = Math.max(1, Math.floor(c.maxHp * 0.5)); c.status = null; });
-      gameState.mapId = 'oakwind';
-      gameState.playerX = 15;
-      gameState.playerY = 10;
+      gameState.mapId = gameState.lastHealMapId;
+      gameState.playerX = gameState.lastHealX;
+      gameState.playerY = gameState.lastHealY;
     }
 
     this.cameras.main.fadeOut(400, 0, 0, 0);
@@ -1081,7 +1226,8 @@ export class BattleScene extends Phaser.Scene {
       const ow = this.scene.get('Overworld') as unknown as { isInBattle: boolean; cameras: { main: { fadeIn: (n: number) => void } } };
       if (result === 'blackout') {
         this.scene.start('Overworld');
-        this.showBlackoutMessage();
+        const locationName = MAPS[gameState.lastHealMapId]?.name ?? 'Oakwind Village';
+        this.scene.launch('Blackout', { locationName });
       } else {
         ow.isInBattle = false;
         ow.cameras?.main?.fadeIn?.(400);
@@ -1090,17 +1236,7 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
-  private showBlackoutMessage() {
-    const W = this.scale.width, H = this.scale.height;
-    const overlay = this.add.graphics().setDepth(999);
-    overlay.fillStyle(0x000000, 1).fillRect(0, 0, W, H);
-    this.add.text(W / 2, H / 2 - 20, 'YOU BLACKED OUT!', {
-      fontSize: '28px', fontFamily: 'monospace', color: '#ff4444', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(1000);
-    this.add.text(W / 2, H / 2 + 20, 'Returned to Oakwind Village...', {
-      fontSize: '16px', fontFamily: 'monospace', color: '#aaaaaa',
-    }).setOrigin(0.5).setDepth(1000);
-  }
+
 
   // ── MESSAGES ──────────────────────────────────────────────────────────────────
   private showMessage(text: string, onComplete?: () => void) {

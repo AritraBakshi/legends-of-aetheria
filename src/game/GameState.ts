@@ -6,6 +6,12 @@ class GameState {
   mapId = 'oakwind';
   playerX = 15;
   playerY = 10;
+  /** Where the player last visited a healing Nurse — defaults to Oakwind's
+   * Pokémon Center spot so a fresh save behaves exactly as before until
+   * the player actually heals somewhere. */
+  lastHealMapId = 'oakwind';
+  lastHealX = 15;
+  lastHealY = 10;
   party: ActiveCreature[] = [];
   storage: ActiveCreature[] = [];
   inventory: InventoryItem[] = [
@@ -34,6 +40,9 @@ class GameState {
     this.mapId = data.mapId;
     this.playerX = data.playerX;
     this.playerY = data.playerY;
+    this.lastHealMapId = data.lastHealMapId ?? 'oakwind';
+    this.lastHealX = data.lastHealX ?? 15;
+    this.lastHealY = data.lastHealY ?? 10;
     this.party = data.party;
     this.storage = data.storage;
     this.inventory = data.inventory;
@@ -52,6 +61,9 @@ class GameState {
       mapId: this.mapId,
       playerX: this.playerX,
       playerY: this.playerY,
+      lastHealMapId: this.lastHealMapId,
+      lastHealX: this.lastHealX,
+      lastHealY: this.lastHealY,
       party: this.party,
       storage: this.storage,
       inventory: this.inventory,
