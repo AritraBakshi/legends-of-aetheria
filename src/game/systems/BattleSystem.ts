@@ -181,9 +181,19 @@ export function applyExpGain(creature: ActiveCreature, exp: number): { leveled: 
 
 export function checkEvolution(creature: ActiveCreature): number | null {
   const data = getCreatureById(creature.dataId)!;
-  if (data.evolutionLevel && creature.level >= data.evolutionLevel && data.evolvesInto) {
-    return data.evolvesInto;
+  if (!data.evolutionLevel || creature.level < data.evolutionLevel) return null;
+
+  if (data.evolutionBranches && data.evolutionBranches.length > 0) {
+    for (const branch of data.evolutionBranches) {
+      const knowsQualifyingMove = creature.moves.some(m => getMoveById(m.moveId)?.type === branch.requiresMoveType);
+      if (knowsQualifyingMove) return branch.evolvesInto;
+    }
+    // Hasn't learned a qualifying move yet — stays as-is, re-checked on the
+    // next level-up. No timeout/fallback: it can wait indefinitely.
+    return null;
   }
+
+  if (data.evolvesInto) return data.evolvesInto;
   return null;
 }
 

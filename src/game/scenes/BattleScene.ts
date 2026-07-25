@@ -10,7 +10,7 @@ import { MAPS } from '../data/maps';
 import {
   calcDamage, isFainted, calcExpGain, applyExpGain,
   checkEvolution, applyStatusDamage, tryCapture, createActiveCreature,
-  learnNewMoves, sanitizeMoves,
+  learnNewMoves, sanitizeMoves, getEffectiveStat,
   type BattleCreature,
 } from '../systems/BattleSystem';
 
@@ -62,6 +62,7 @@ export class BattleScene extends Phaser.Scene {
 
   private actionMenu!: Phaser.GameObjects.Container;
   private moveMenu!: Phaser.GameObjects.Container;
+  private evolveChoiceMenu!: Phaser.GameObjects.Container;
   private bagMenu!: Phaser.GameObjects.Container;
   private partyMenu!: Phaser.GameObjects.Container;
 
@@ -69,6 +70,8 @@ export class BattleScene extends Phaser.Scene {
   private moveButtons: Phaser.GameObjects.Text[] = [];
   private selectedAction = 0;
   private selectedMove = 0;
+  /** Holds the two pending attacks for the current exchange, in speed/priority order. */
+  private turnQueue: { bc: BattleCreature; opponent: BattleCreature; move: Move; isEnemy: boolean; isCrashout: boolean }[] = [];
   private enemyNameText!: Phaser.GameObjects.Text;
 
   // Trainer multi-creature queue (creatures 2..N waiting to battle)
@@ -159,6 +162,7 @@ export class BattleScene extends Phaser.Scene {
     // Menus
     this.createActionMenu();
     this.createMoveMenuContainer();
+    this.createEvolveChoiceMenu();
     this.createBagMenu();
     this.createPartyMenuContainer();
 
@@ -278,6 +282,47 @@ export class BattleScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-ENTER', () => { if (this.canInput && this.actionMenu.visible) this.handleActionSelect(); });
     this.input.keyboard!.on('keydown-Z',     () => { if (this.canInput && this.actionMenu.visible) this.handleActionSelect(); });
     this.input.keyboard!.on('keydown-X',     () => { if (this.canInput && this.moveMenu.visible) this.showActionMenu(); });
+  }
+
+  // ── EVOLVE CONFIRMATION ─────────────────────────────────────────────────────────
+  private createEvolveChoiceMenu() {
+    const W = this.scale.width, H = this.scale.height;
+    this.evolveChoiceMenu = this.add.container(W - 316, H - 108).setDepth(20);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1a2e, 0.95).fillRoundedRect(0, 0, 300, 96, 8);
+    bg.lineStyle(2, 0xffd700).strokeRoundedRect(0, 0, 300, 96, 8);
+    this.evolveChoiceMenu.add(bg);
+
+    const yesBtn = this.add.text(150, 30, '✔ YES', {
+      fontSize: '20px', fontFamily: 'monospace', color: '#80ff80', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const noBtn = this.add.text(150, 66, '✘ NO', {
+      fontSize: '20px', fontFamily: 'monospace', color: '#ff8080', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    yesBtn.on('pointerover', () => yesBtn.setStyle({ color: '#c0ffc0' }));
+    yesBtn.on('pointerout',  () => yesBtn.setStyle({ color: '#80ff80' }));
+    noBtn.on('pointerover',  () => noBtn.setStyle({ color: '#ffc0c0' }));
+    noBtn.on('pointerout',   () => noBtn.setStyle({ color: '#ff8080' }));
+
+    this.evolveChoiceMenu.add([yesBtn, noBtn]);
+    this.evolveChoiceMenu.setVisible(false);
+    this.evolveChoiceMenu.setData('yesBtn', yesBtn);
+    this.evolveChoiceMenu.setData('noBtn', noBtn);
+  }
+
+  /** Shows the Yes/No evolve prompt and wires fresh one-shot handlers for this decision. */
+  private showEvolvePrompt(onYes: () => void, onNo: () => void) {
+    const yesBtn = this.evolveChoiceMenu.getData('yesBtn') as Phaser.GameObjects.Text;
+    const noBtn = this.evolveChoiceMenu.getData('noBtn') as Phaser.GameObjects.Text;
+    yesBtn.removeAllListeners('pointerdown');
+    noBtn.removeAllListeners('pointerdown');
+    yesBtn.on('pointerdown', () => { this.evolveChoiceMenu.setVisible(false); onYes(); });
+    noBtn.on('pointerdown', () => { this.evolveChoiceMenu.setVisible(false); onNo(); });
+    this.evolveChoiceMenu.setVisible(true);
+
+    this.input.keyboard!.once('keydown-Z', () => { this.evolveChoiceMenu.setVisible(false); onYes(); });
+    this.input.keyboard!.once('keydown-X', () => { this.evolveChoiceMenu.setVisible(false); onNo(); });
   }
 
   // ── MOVE MENU ─────────────────────────────────────────────────────────────────
@@ -605,28 +650,8 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     moveSlot.pp--;
-    const move = getMoveById(moveSlot.moveId)!;
-    const playerName = this.getPlayerCreatureName();
-
-    const statusDmg = applyStatusDamage(this.playerBC.creature);
-    if (statusDmg > 0) {
-      this.updateHPBar(this.playerBC.creature, true);
-      const status = this.playerBC.creature.status;
-      this.showMessage(`${playerName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
-        if (isFainted(this.playerBC.creature)) {
-          this.faintAnimation(this.playerSprite);
-          this.showMessage(`${playerName} fainted!`, () => this.handlePlayerFaint());
-        } else {
-          this.showMessage(`${playerName} used ${move.name}!`, () => {
-            this.applyMove(this.playerBC, this.enemyBC, move, false);
-          });
-        }
-      });
-    } else {
-      this.showMessage(`${playerName} used ${move.name}!`, () => {
-        this.applyMove(this.playerBC, this.enemyBC, move, false);
-      });
-    }
+    const playerMove = getMoveById(moveSlot.moveId)!;
+    this.beginMoveExchange(playerMove, false);
   }
 
   /** Last-resort action when every move is out of PP. Costs no PP itself. */
@@ -635,26 +660,112 @@ export class BattleScene extends Phaser.Scene {
     this.canInput = false;
     this.moveMenu.setVisible(false);
     this.actionMenu.setVisible(false);
+    this.beginMoveExchange(FINAL_CRASHOUT_MOVE, true);
+  }
 
-    const playerName = this.getPlayerCreatureName();
-    const statusDmg = applyStatusDamage(this.playerBC.creature);
+  /**
+   * Shared entry point for "the player's creature is about to act": picks the
+   * enemy's move too, decides who goes first from move priority and then
+   * current (stage-adjusted) Speed, and queues both attacks in that order.
+   */
+  private beginMoveExchange(playerMove: Move, playerIsCrashout: boolean) {
+    const enemyPicked = this.pickEnemyMove();
+    const enemyMove = enemyPicked ? enemyPicked.move : FINAL_CRASHOUT_MOVE;
+    const enemyIsCrashout = !enemyPicked;
+
+    const playerFirst = this.playerGoesFirst(playerMove, enemyMove);
+    const playerAction = { bc: this.playerBC, opponent: this.enemyBC, move: playerMove, isEnemy: false, isCrashout: playerIsCrashout };
+    const enemyAction  = { bc: this.enemyBC, opponent: this.playerBC, move: enemyMove, isEnemy: true, isCrashout: enemyIsCrashout };
+    this.turnQueue = playerFirst ? [playerAction, enemyAction] : [enemyAction, playerAction];
+    this.runNextQueuedAction();
+  }
+
+  /** Picks (and commits PP for) the enemy's move. Returns null if it has none left. */
+  private pickEnemyMove(): { moveSlot: { moveId: number; pp: number; maxPp: number }; move: Move } | null {
+    const moves = this.enemyBC.creature.moves.filter(m => m.pp > 0);
+    if (moves.length === 0) return null;
+    const moveSlot = moves[Math.floor(Math.random() * moves.length)];
+    moveSlot.pp--;
+    return { moveSlot, move: getMoveById(moveSlot.moveId)! };
+  }
+
+  /** Priority tier of a move (Quick Attack, Ice Shard, etc. go before normal moves). */
+  private getMovePriority(move: Move): number {
+    return move.effect?.type === 'priority' ? (move.effect.priority ?? 0) : 0;
+  }
+
+  /**
+   * Decides who acts first: higher move priority wins outright; otherwise the
+   * creature with the higher *current* (stage-adjusted) Speed goes first —
+   * not raw base Speed, so Agility/Tailwind and speed-lowering moves actually
+   * matter here, same as they do for damage. Ties are a coin flip.
+   */
+  private playerGoesFirst(playerMove: Move, enemyMove: Move): boolean {
+    const playerPriority = this.getMovePriority(playerMove);
+    const enemyPriority = this.getMovePriority(enemyMove);
+    if (playerPriority !== enemyPriority) return playerPriority > enemyPriority;
+
+    const playerSpeed = getEffectiveStat(this.playerBC, 'spd');
+    const enemySpeed = getEffectiveStat(this.enemyBC, 'spd');
+    if (playerSpeed !== enemySpeed) return playerSpeed > enemySpeed;
+
+    return Math.random() < 0.5;
+  }
+
+  /** Runs the next queued attack, or returns control to the player if the exchange is over. */
+  private runNextQueuedAction() {
+    const next = this.turnQueue.shift();
+    if (!next) { this.showActionMenu(); return; }
+    this.runAttackAction(next.bc, next.opponent, next.move, next.isEnemy, next.isCrashout);
+  }
+
+  /** Called wherever the old code called nextTurn()/enemyTurn() after a move fully resolves. */
+  private advanceQueue() {
+    if (this.turnQueue.length > 0) {
+      this.time.delayedCall(400, () => this.runNextQueuedAction());
+    } else {
+      this.showActionMenu();
+    }
+  }
+
+  /**
+   * Runs one creature's turn: pre-move status damage (burn/poison/etc.), then
+   * either a normal "used MOVE!" message or the Final Crashout message, then
+   * the actual move. Shared by the player and the enemy so both sides get
+   * identical status-damage/faint handling.
+   */
+  private runAttackAction(bc: BattleCreature, opponent: BattleCreature, move: Move, isEnemy: boolean, isCrashout: boolean) {
+    const name = isEnemy ? this.config.wildCreatureData.name : this.getPlayerCreatureName();
+    const sprite = isEnemy ? this.enemySprite : this.playerSprite;
+
+    const proceed = () => {
+      if (isCrashout) {
+        this.showMessage(`${name} has no moves left and unleashes a Final Crashout!!`, () => {
+          this.applyMove(bc, opponent, FINAL_CRASHOUT_MOVE, isEnemy);
+        });
+      } else {
+        this.showMessage(`${name} used ${move.name}!`, () => {
+          this.applyMove(bc, opponent, move, isEnemy);
+        });
+      }
+    };
+
+    const statusDmg = applyStatusDamage(bc.creature);
     if (statusDmg > 0) {
-      this.updateHPBar(this.playerBC.creature, true);
-      const status = this.playerBC.creature.status;
-      this.showMessage(`${playerName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
-        if (isFainted(this.playerBC.creature)) {
-          this.faintAnimation(this.playerSprite);
-          this.showMessage(`${playerName} fainted!`, () => this.handlePlayerFaint());
-        } else {
-          this.showMessage(`${playerName} has no moves left and unleashes a Final Crashout!!`, () => {
-            this.applyMove(this.playerBC, this.enemyBC, FINAL_CRASHOUT_MOVE, false);
+      this.updateHPBar(bc.creature, !isEnemy);
+      const status = bc.creature.status;
+      this.showMessage(`${name} is hurt by ${status}! (-${statusDmg} HP)`, () => {
+        if (isFainted(bc.creature)) {
+          this.faintAnimation(sprite);
+          this.showMessage(`${name} fainted!`, () => {
+            if (isEnemy) this.handleEnemyFaint(); else this.handlePlayerFaint();
           });
+        } else {
+          proceed();
         }
       });
     } else {
-      this.showMessage(`${playerName} has no moves left and unleashes a Final Crashout!!`, () => {
-        this.applyMove(this.playerBC, this.enemyBC, FINAL_CRASHOUT_MOVE, false);
-      });
+      proceed();
     }
   }
 
@@ -670,7 +781,7 @@ export class BattleScene extends Phaser.Scene {
     if (Math.random() * 100 > move.accuracy) {
       const dodgeSprite = isEnemy ? this.playerSprite : this.enemySprite;
       this.dodgeAnimation(dodgeSprite);
-      this.showMessage(`${attackerName}'s ${move.name} missed!`, () => this.nextTurn(!isEnemy));
+      this.showMessage(`${attackerName}'s ${move.name} missed!`, () => this.advanceQueue());
       return;
     }
 
@@ -744,13 +855,13 @@ export class BattleScene extends Phaser.Scene {
               else this.handlePlayerFaint();
             });
           } else {
-            this.nextTurn(!isEnemy);
+            this.advanceQueue();
           }
         });
         return;
       }
 
-      this.nextTurn(!isEnemy);
+      this.advanceQueue();
     });
   }
 
@@ -789,7 +900,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    this.showMessage(msg || `${attackerName} used ${move.name}!`, () => this.nextTurn(!isEnemy));
+    this.showMessage(msg || `${attackerName} used ${move.name}!`, () => this.advanceQueue());
   }
 
   // ── ANIMATION HELPERS ────────────────────────────────────────────────────────
@@ -878,67 +989,15 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // ── TURN FLOW ─────────────────────────────────────────────────────────────────
-  // wasPlayerTurn=true  → player just moved → enemy goes next
-  // wasPlayerTurn=false → enemy just moved  → player chooses
-  private nextTurn(wasPlayerTurn: boolean) {
-    if (wasPlayerTurn) this.time.delayedCall(400, () => this.enemyTurn());
-    else this.showActionMenu();
-  }
-
+  // Speed-ordered move exchanges live in beginMoveExchange()/runNextQueuedAction()/
+  // advanceQueue() above. enemyTurn() below remains a standalone path for
+  // contexts where the player didn't attack this turn (using an item, a
+  // capture attempt, or a failed flee) — the enemy still just acts once,
+  // no speed comparison needed since the player isn't also attacking.
   private enemyTurn() {
-    const moves = this.enemyBC.creature.moves.filter(m => m.pp > 0);
-    if (moves.length === 0) {
-      // Same soft-lock fix as the player side: no moves left, still has to act.
-      const statusDmg = applyStatusDamage(this.enemyBC.creature);
-      const enemyName = this.config.wildCreatureData.name;
-      if (statusDmg > 0) {
-        this.updateHPBar(this.enemyBC.creature, false);
-        const status = this.enemyBC.creature.status;
-        this.showMessage(`${enemyName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
-          if (isFainted(this.enemyBC.creature)) {
-            this.faintAnimation(this.enemySprite);
-            this.showMessage(`${enemyName} fainted!`, () => this.handleEnemyFaint());
-          } else {
-            this.showMessage(`${enemyName} has no moves left and unleashes a Final Crashout!!`, () => {
-              this.applyMove(this.enemyBC, this.playerBC, FINAL_CRASHOUT_MOVE, true);
-            });
-          }
-        });
-      } else {
-        this.showMessage(`${enemyName} has no moves left and unleashes a Final Crashout!!`, () => {
-          this.applyMove(this.enemyBC, this.playerBC, FINAL_CRASHOUT_MOVE, true);
-        });
-      }
-      return;
-    }
-
-    const moveSlot = moves[Math.floor(Math.random() * moves.length)];
-    moveSlot.pp--;
-    const move = getMoveById(moveSlot.moveId)!;
-    const enemyName = this.config.wildCreatureData.name;
-
-    const statusDmg = applyStatusDamage(this.enemyBC.creature);
-    if (statusDmg > 0) {
-      this.updateHPBar(this.enemyBC.creature, false);
-      const status = this.enemyBC.creature.status;
-      this.showMessage(`${enemyName} is hurt by ${status}! (-${statusDmg} HP)`, () => {
-        if (isFainted(this.enemyBC.creature)) {
-          this.faintAnimation(this.enemySprite);
-          this.showMessage(`${enemyName} fainted!`, () => this.handleEnemyFaint());
-        } else {
-          this.doEnemyAttack(move);
-        }
-      });
-    } else {
-      this.doEnemyAttack(move);
-    }
-  }
-
-  private doEnemyAttack(move: Move) {
-    const enemyName = this.config.wildCreatureData.name;
-    this.showMessage(`${enemyName} used ${move.name}!`, () => {
-      this.applyMove(this.enemyBC, this.playerBC, move, true);
-    });
+    const picked = this.pickEnemyMove();
+    const move = picked ? picked.move : FINAL_CRASHOUT_MOVE;
+    this.runAttackAction(this.enemyBC, this.playerBC, move, true, !picked);
   }
 
   // ── FAINT HANDLING ────────────────────────────────────────────────────────────
@@ -1001,40 +1060,52 @@ export class BattleScene extends Phaser.Scene {
 
   private checkEvolutionAfterLevel(creature: ActiveCreature) {
     const evolveId = checkEvolution(creature);
-    if (evolveId) {
-      this.showMessage(`${this.getPlayerCreatureName()} is evolving!`, () => {
-        const newData = getCreatureById(evolveId)!;
-        const oldName = this.getPlayerCreatureName();
-        creature.dataId = evolveId;
+    if (!evolveId) { this.finishEnemyFaint(); return; }
 
-        // Mark evolved form as seen AND caught in the dex
-        gameState.seenCreatures.add(evolveId);
-        gameState.caughtCreatures.add(evolveId);
+    const newData = getCreatureById(evolveId)!;
+    const oldName = this.getPlayerCreatureName();
 
-        // Update moves to match the evolved species' learnset up to current level
-        const evolved = getCreatureById(evolveId)!;
-        const newMoves = evolved.learnset
-          .filter(m => m.level <= creature.level)
-          .sort((a, b) => b.level - a.level)
-          .slice(0, 4);
-        // Keep any moves the creature already has that aren't in the new learnset
-        const existingMoveIds = new Set(creature.moves.map(m => m.moveId));
-        const newMoveIds = new Set(newMoves.map(m => m.moveId));
-        const toKeep = creature.moves.filter(m => !newMoveIds.has(m.moveId));
-        const toAdd = newMoves
-          .filter(m => !existingMoveIds.has(m.moveId))
-          .map(m => ({ moveId: m.moveId, pp: getMoveById(m.moveId)?.pp ?? 10, maxPp: getMoveById(m.moveId)?.pp ?? 10 }));
-        const merged = [...creature.moves, ...toAdd];
-        creature.moves = merged.slice(-4); // keep the 4 most recently learned
-        this.rebuildMoveButtons();
+    this.showMessage(`${oldName} is trying to evolve into ${newData.name}!`, () => {
+      this.showEvolvePrompt(
+        () => this.performEvolution(creature, evolveId),
+        () => {
+          // Declined — stays as-is. checkEvolution() runs again on the very
+          // next level-up, so this will simply be asked again then.
+          this.showMessage(`${oldName} did not evolve.`, () => this.finishEnemyFaint());
+        },
+      );
+    });
+  }
 
-        this.playerSprite.setTexture(`creature_${evolveId}_back`)
-          .setDisplaySize(this.battleSize(evolveId).player, this.battleSize(evolveId).player);
-        this.showMessage(`${oldName} evolved into ${newData.name}!`, () => this.finishEnemyFaint());
-      });
-    } else {
-      this.finishEnemyFaint();
-    }
+  private performEvolution(creature: ActiveCreature, evolveId: number) {
+    const newData = getCreatureById(evolveId)!;
+    const oldName = this.getPlayerCreatureName();
+    creature.dataId = evolveId;
+
+    // Mark evolved form as seen AND caught in the dex
+    gameState.seenCreatures.add(evolveId);
+    gameState.caughtCreatures.add(evolveId);
+
+    // Update moves to match the evolved species' learnset up to current level
+    const evolved = getCreatureById(evolveId)!;
+    const newMoves = evolved.learnset
+      .filter(m => m.level <= creature.level)
+      .sort((a, b) => b.level - a.level)
+      .slice(0, 4);
+    // Keep any moves the creature already has that aren't in the new learnset
+    const existingMoveIds = new Set(creature.moves.map(m => m.moveId));
+    const newMoveIds = new Set(newMoves.map(m => m.moveId));
+    const toKeep = creature.moves.filter(m => !newMoveIds.has(m.moveId));
+    const toAdd = newMoves
+      .filter(m => !existingMoveIds.has(m.moveId))
+      .map(m => ({ moveId: m.moveId, pp: getMoveById(m.moveId)?.pp ?? 10, maxPp: getMoveById(m.moveId)?.pp ?? 10 }));
+    const merged = [...creature.moves, ...toAdd];
+    creature.moves = merged.slice(-4); // keep the 4 most recently learned
+    this.rebuildMoveButtons();
+
+    this.playerSprite.setTexture(`creature_${evolveId}_back`)
+      .setDisplaySize(this.battleSize(evolveId).player, this.battleSize(evolveId).player);
+    this.showMessage(`${oldName} evolved into ${newData.name}!`, () => this.finishEnemyFaint());
   }
 
   /**
@@ -1055,7 +1126,7 @@ export class BattleScene extends Phaser.Scene {
     const next = this.trainerEnemyQueue.shift()!;
     gameState.seenCreatures.add(next.data.id);
 
-    // Update the live reference so doEnemyAttack() uses the correct name
+    // Update the live reference so runAttackAction()/applyMove() use the correct name
     this.config.wildCreatureData = next.data;
 
     sanitizeMoves(next.creature);

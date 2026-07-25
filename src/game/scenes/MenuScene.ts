@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { gameState } from '../GameState';
-import { getCreatureById } from '../data/creatures';
+import { getCreatureById, CREATURES } from '../data/creatures';
 import { getItemById } from '../data/items';
 import { getMoveById } from '../data/moves';
 import { TYPE_COLORS } from '../data/typeChart';
@@ -97,6 +97,49 @@ export class MenuScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-THREE', () => this.switchTab('dex'));
     this.input.keyboard!.on('keydown-FOUR',  () => this.switchTab('storage'));
     this.input.keyboard!.on('keydown-FIVE',  () => this.switchTab('save'));
+  }
+
+  /**
+   * A blocking Yes/No confirmation modal, rendered above everything
+   * (including the active tab content) with a dimmed backdrop. Used for
+   * evolution confirmation, and reusable for any future "are you sure?"
+   * prompt in the menu.
+   */
+  private showConfirmModal(message: string, onYes: () => void, onNo: () => void) {
+    const W = this.scale.width, H = this.scale.height;
+    const modal = this.add.container(0, 0).setDepth(1000);
+
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.6).fillRect(0, 0, W, H);
+    dim.setInteractive(new Phaser.Geom.Rectangle(0, 0, W, H), Phaser.Geom.Rectangle.Contains);
+    modal.add(dim);
+
+    const boxW = 420, boxH = 160;
+    const boxX = (W - boxW) / 2, boxY = (H - boxH) / 2;
+    const box = this.add.graphics();
+    box.fillStyle(0x1a1a2e, 0.98).fillRoundedRect(boxX, boxY, boxW, boxH, 10);
+    box.lineStyle(3, 0xffd700, 0.9).strokeRoundedRect(boxX, boxY, boxW, boxH, 10);
+    modal.add(box);
+
+    const txt = this.add.text(boxX + boxW / 2, boxY + 44, message, {
+      fontSize: '15px', fontFamily: 'monospace', color: '#ffffff',
+      align: 'center', wordWrap: { width: boxW - 40 }, lineSpacing: 6,
+    }).setOrigin(0.5);
+    modal.add(txt);
+
+    const yesBtn = this.add.text(boxX + boxW / 2 - 70, boxY + boxH - 32, '✔ YES', {
+      fontSize: '18px', fontFamily: 'monospace', color: '#80ff80', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const noBtn = this.add.text(boxX + boxW / 2 + 70, boxY + boxH - 32, '✘ NO', {
+      fontSize: '18px', fontFamily: 'monospace', color: '#ff8080', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    yesBtn.on('pointerover', () => yesBtn.setStyle({ color: '#c0ffc0' }));
+    yesBtn.on('pointerout',  () => yesBtn.setStyle({ color: '#80ff80' }));
+    noBtn.on('pointerover',  () => noBtn.setStyle({ color: '#ffc0c0' }));
+    noBtn.on('pointerout',   () => noBtn.setStyle({ color: '#ff8080' }));
+    yesBtn.on('pointerdown', () => { modal.destroy(); onYes(); });
+    noBtn.on('pointerdown',  () => { modal.destroy(); onNo(); });
+    modal.add([yesBtn, noBtn]);
   }
 
   private switchTab(tab: MenuTab) {
@@ -575,10 +618,26 @@ export class MenuScene extends Phaser.Scene {
               const evolveId = checkEvolution(creature);
               if (evolveId) {
                 const newData = getCreatureById(evolveId)!;
-                creature.dataId = evolveId;
-                gameState.seenCreatures.add(evolveId);
-                gameState.caughtCreatures.add(evolveId);
-                showFeedback(`${data.name} grew to Lv.${creature.level} and evolved into ${newData.name}!`, '#80ffff');
+                const oldName = data.name;
+                const newLevel = creature.level;
+                this.showConfirmModal(
+                  `${oldName} is trying to evolve into ${newData.name}!\nAllow it?`,
+                  () => {
+                    creature.dataId = evolveId;
+                    gameState.seenCreatures.add(evolveId);
+                    gameState.caughtCreatures.add(evolveId);
+                    gameState.useItem(this.bagPendingItemId!);
+                    showFeedback(`${oldName} grew to Lv.${newLevel} and evolved into ${newData.name}!`, '#80ffff');
+                  },
+                  () => {
+                    // Declined — stays as-is. checkEvolution() runs again the
+                    // next time it levels up, so this will simply be asked again then.
+                    gameState.useItem(this.bagPendingItemId!);
+                    showFeedback(`${oldName} grew to Lv.${newLevel}! (Evolution declined)`, '#80ffff');
+                  },
+                );
+                used = true;
+                return; // modal callbacks handle useItem()/feedback themselves
               } else {
                 showFeedback(`${data.name} gained ${item.xpAmount} EXP and grew to Lv.${creature.level}!`, '#80ffff');
               }
@@ -641,14 +700,30 @@ export class MenuScene extends Phaser.Scene {
       }));
 
       const isUsable = item.type === 'heal' || item.type === 'status_cure' || item.type === 'xp_boost';
-      if (isUsable && inv.quantity > 0) {
+      const isDirectUse = item.type === 'repel';
+      if ((isUsable || isDirectUse) && inv.quantity > 0) {
         const useBtn = this.add.text(500, rowY + 13, 'USE', {
           fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
           backgroundColor: '#204020', padding: { x: 7, y: 3 },
         }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
         useBtn.on('pointerover', () => useBtn.setStyle({ backgroundColor: '#306030' }));
         useBtn.on('pointerout',  () => useBtn.setStyle({ backgroundColor: '#204020' }));
-        useBtn.on('pointerdown', () => { this.bagPendingItemId = item.id; this.switchTab('bag'); });
+        useBtn.on('pointerdown', () => {
+          if (isDirectUse) {
+            if (item.repelSteps) gameState.repelSteps = Math.max(gameState.repelSteps, item.repelSteps);
+            gameState.useItem(item.id);
+            this.switchTab('bag');
+            // Brief toast added directly to the scene (not contentContainer,
+            // which switchTab just cleared), so it survives the tab refresh.
+            const toast = this.add.text(260, 4, `Used ${item.name}! Wild creatures will avoid you.`, {
+              fontSize: '12px', fontFamily: 'monospace', color: '#40ff80',
+              backgroundColor: '#0e1e3a', padding: { x: 8, y: 4 },
+            }).setOrigin(0.5, 0).setDepth(1000);
+            this.time.delayedCall(1400, () => toast.destroy());
+            return;
+          }
+          this.bagPendingItemId = item.id; this.switchTab('bag');
+        });
         rowContainer.add(useBtn);
       }
     });
@@ -861,8 +936,8 @@ private renderStorage() {
     const info = [
       `Trainer: ${gameState.playerName}`,
       `Location: ${MAPS[gameState.mapId]?.name ?? gameState.mapId}`,
-      `Creatures: ${gameState.caughtCreatures.size}/30 caught`,
-      `Seen: ${gameState.seenCreatures.size}/30`,
+      `Creatures: ${gameState.caughtCreatures.size}/${CREATURES.length} caught`,
+      `Seen: ${gameState.seenCreatures.size}/${CREATURES.length}`,
       `Party: ${gameState.party.length}/6`,
       `Money: ¢${gameState.money}`,
     ];

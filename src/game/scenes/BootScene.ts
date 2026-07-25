@@ -5,7 +5,7 @@ export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
 
   preload() {
-    for (let id = 1; id <= 30; id++) {
+    for (let id = 1; id <= 39; id++) {
       this.load.image(`creature_${id}`,      `assets/creatures/creature_${id}.png`);
       this.load.image(`creature_${id}_back`, `assets/creatures/creature_${id}_back.png`);
     }
@@ -34,6 +34,14 @@ export class BootScene extends Phaser.Scene {
       .fillStyle(0x5aa04a).fillRect(3,7,2,3).fillRect(14,18,2,3).fillRect(22,3,2,3).fillRect(6,24,2,3)
       .fillStyle(0x2d6625).fillRect(1,14,1,2).fillRect(10,2,1,2).fillRect(24,16,1,2).fillRect(16,28,1,2);
     g.generateTexture('tile_grass', T, T);
+
+    // Sand — light warm beach sand with grain speckle and tiny shell flecks
+    g.clear()
+      .fillStyle(0xe8d4a0).fillRect(0, 0, T, T)
+      .fillStyle(0xdcc68c).fillRect(3,5,2,2).fillRect(16,10,2,2).fillRect(24,4,2,2).fillRect(8,22,2,2).fillRect(20,26,2,2)
+      .fillStyle(0xf2e2b8).fillRect(10,2,2,2).fillRect(26,16,2,2).fillRect(5,18,2,2).fillRect(14,26,2,2)
+      .fillStyle(0xffffff, 0.5).fillRect(12,12,2,1).fillRect(22,22,2,1); // tiny shell/pebble highlight
+    g.generateTexture('tile_sand', T, T);
 
     // Path — sandy dirt with pebble detail
     g.clear()
@@ -172,6 +180,102 @@ export class BootScene extends Phaser.Scene {
       .fillStyle(0x8a9aa0, 0.5).fillRect(14,14,3,1).fillRect(24,6,3,1); // puddle sheen
     g.generateTexture('tile_mud', T, T);
 
+    // Cave floor — dark cavern soil with scattered pebbles, distinct from
+    // both the indoor stone floor and the outdoor mud patch
+    g.clear()
+      .fillStyle(0x2e2a28).fillRect(0, 0, T, T)
+      .fillStyle(0x36302c).fillRect(2, 2, T - 4, T - 4)
+      .fillStyle(0x241f1d).fillRect(4, 20, 10, 6).fillRect(18, 6, 8, 5).fillRect(6, 6, 6, 5) // darker soil patches
+      .fillStyle(0x4a423c).fillRect(9, 12, 3, 2).fillRect(21, 20, 3, 2).fillRect(15, 24, 3, 2) // small pebbles
+      .fillStyle(0x59504a).fillRect(9, 12, 2, 1).fillRect(21, 20, 2, 1).fillRect(15, 24, 2, 1) // pebble highlight
+      .fillStyle(0x1c1816, 0.6).fillRect(0, 0, T, 2).fillRect(0, 0, 2, T); // subtle edge shadow
+    g.generateTexture('tile_cave', T, T);
+
+    // Coral wall — sea-worn teal/aqua stone blocks, distinct from the
+    // reddish-brown brick used everywhere else, for Waveshore's buildings
+    g.clear()
+      .fillStyle(0x1e6e78).fillRect(0, 0, T, T)
+      .fillStyle(0x267e88).fillRect(1,1,T-2,12).fillRect(1,15,T-2,7).fillRect(1,24,T-2,7)
+      .fillStyle(0x175a62) // mortar lines
+      .fillRect(0,13,T,2).fillRect(0,22,T,2)
+      .fillRect(11,0,2,13).fillRect(24,0,2,13)
+      .fillRect(4,15,2,7).fillRect(18,15,2,7)
+      .fillRect(11,24,2,6).fillRect(24,24,2,6)
+      .fillStyle(0x3a9aa0) // coral fleck highlights
+      .fillRect(6,4,2,2).fillRect(20,7,2,2).fillRect(14,18,2,2).fillRect(26,26,2,2);
+    g.generateTexture('tile_wall_coral', T, T);
+
+    // Coral roof — warm cream-and-coral shell tiles, deliberately lighter
+    // and warmer than the deep teal walls so roof vs. wall reads at a glance
+    g.clear()
+      .fillStyle(0xe8a878).fillRect(0, 0, T, T)
+      .fillStyle(0xd8925e).fillRect(0,2,T,2).fillRect(0,9,T,2).fillRect(0,16,T,2).fillRect(0,23,T,2)
+      .fillStyle(0xf2c090).fillRect(4,3,4,1).fillRect(12,3,4,1).fillRect(20,3,4,1)
+      .fillRect(4,10,4,1).fillRect(20,10,4,1).fillRect(12,17,4,1).fillRect(20,17,4,1)
+      .fillStyle(0xffe0b8).fillRect(6,5,2,1).fillRect(14,12,2,1).fillRect(22,19,2,1); // sun-bleached highlight
+    g.generateTexture('tile_roof_coral', T, T);
+
+    // Palm tree — coastal decoration, taller canopy than the inland TREE tile
+    g.clear()
+      .fillStyle(0xe8d4a0).fillRect(0, 0, T, T) // sand base beneath the canopy shadow
+      .fillStyle(0x8a6a42).fillRect(13, 14, 6, 18) // trunk
+      .fillStyle(0x6e5232).fillRect(13, 14, 2, 18).fillRect(17, 14, 2, 18) // trunk shading/rings
+      .fillStyle(0x2f8a3a) // fronds, four sweeping blades from the crown
+      .fillRect(2, 4, 16, 5).fillRect(14, 3, 16, 5)
+      .fillRect(4, 9, 13, 5).fillRect(15, 9, 13, 5)
+      .fillStyle(0x3fae4c).fillRect(4, 5, 12, 2).fillRect(16, 4, 12, 2); // frond highlight
+    g.generateTexture('tile_palm', T, T);
+
+    // Shell/starfish accent — decorative, sits on top of a sand background
+    // (tiles are opaque single cells here, not composited layers, so this
+    // needs its own sand base just like the flower tile has a grass base)
+    g.clear()
+      .fillStyle(0xe8d4a0).fillRect(0, 0, T, T)
+      .fillStyle(0xdcc68c).fillRect(3,5,2,2).fillRect(24,4,2,2).fillRect(5,18,2,2) // sand grain, matching tile_sand
+      .fillStyle(0xf5a85c).fillRect(9, 21, 2, 5).fillRect(12, 19, 2, 6).fillRect(15, 22, 2, 4) // starfish arms
+      .fillStyle(0xf7bc80).fillRect(11, 22, 3, 3) // starfish center
+      .fillStyle(0xffffff).fillRect(20, 8, 7, 5) // shell body
+      .fillStyle(0xe8c8d8).fillRect(21, 9, 5, 3)
+      .fillStyle(0xd89898).fillRect(23, 10, 1, 1);
+    g.generateTexture('tile_shell', T, T);
+
+    // Dock — weathered wood-plank pier, laid over water
+    g.clear()
+      .fillStyle(0x8a6a42).fillRect(0, 0, T, T)
+      .fillStyle(0x7a5a36).fillRect(0,0,T,3).fillRect(0,10,T,3).fillRect(0,20,T,3).fillRect(0,29,T,3) // plank seams
+      .fillStyle(0x9a7a52).fillRect(2,4,T-4,2).fillRect(2,14,T-4,2).fillRect(2,24,T-4,2) // plank highlight
+      .fillStyle(0x5a4426).fillRect(3,1,1,2).fillRect(14,11,1,2).fillRect(26,21,1,2); // nail heads
+    g.generateTexture('tile_dock', T, T);
+
+    // Fence — wooden picket fence over grass, for garden/yard borders
+    g.clear()
+      .fillStyle(0x4a8c3f).fillRect(0, 0, T, T) // grass base (fences sit on grass, like Oakwind's yards)
+      .fillStyle(0x3d7a33).fillRect(0,0,2,2).fillRect(26,22,2,2)
+      .fillStyle(0xc8a878).fillRect(2,10,4,20).fillRect(13,10,4,20).fillRect(24,10,4,20) // posts
+      .fillStyle(0xa88858).fillRect(2,10,1,20).fillRect(13,10,1,20).fillRect(24,10,1,20) // post shading
+      .fillStyle(0xd8b888).fillRect(0,12,T,4).fillRect(0,20,T,4) // horizontal rails
+      .fillStyle(0xa88858).fillRect(0,15,T,1).fillRect(0,23,T,1); // rail shading
+    g.generateTexture('tile_fence', T, T);
+
+    // Crystal — glinting ore vein jutting from rocky ground, Earthenhold's
+    // signature decoration
+    g.clear()
+      .fillStyle(0x6b5a48).fillRect(0, 0, T, T) // rocky-dirt base, matching the rockpath/mud palette
+      .fillStyle(0x5a4a3a).fillRect(2,20,10,6).fillRect(18,22,10,6) // ground shadow
+      .fillStyle(0x7a5ce0).fillRect(11,6,5,16).fillRect(6,14,4,10).fillRect(20,12,4,12) // amethyst shards
+      .fillStyle(0x9a80f0).fillRect(12,8,2,10).fillRect(7,16,1,7).fillRect(21,14,1,9) // shard highlight
+      .fillStyle(0xc8b8ff).fillRect(13,9,1,3).fillRect(21,15,1,2); // sparkle
+    g.generateTexture('tile_crystal', T, T);
+
+    // Seaweed — shallow water tile with drifting kelp fronds, for
+    // "waterway" flavor in canals and shallows
+    g.clear()
+      .fillStyle(0x1a5a8a).fillRect(0, 0, T, T)
+      .fillStyle(0x2468a0).fillRect(0,0,T,3).fillRect(0,T-3,T,3) // ripple bands
+      .fillStyle(0x2a7a4a).fillRect(8,4,3,14).fillRect(18,10,3,16).fillRect(13,2,3,10) // kelp fronds
+      .fillStyle(0x3a9a5e).fillRect(9,4,1,14).fillRect(19,10,1,16).fillRect(14,2,1,10); // frond highlight
+    g.generateTexture('tile_seaweed', T, T);
+
     g.destroy();
   }
 
@@ -239,6 +343,50 @@ export class BootScene extends Phaser.Scene {
     // Shadow
     g.clear().fillStyle(0x000000, 0.3).fillEllipse(16, 30, 20, 6);
     g.generateTexture('player_shadow', W, H);
+
+    // ── Surfing variant — same rider, seated lower over a wooden board ──
+    const BOARD = 0x8a6020, BOARD_TIP = 0xd0a840;
+    DIRS.forEach((dir) => {
+      for (let frame = 0; frame < 3; frame++) {
+        g.clear();
+        const bob = frame === 1 ? 1 : 0; // gentle up/down bob instead of a leg-walk cycle
+
+        // Board (drawn first, sits under the rider, extends fore/aft of travel)
+        g.fillStyle(BOARD).fillRect(6, 24 + bob, 20, 6);
+        g.fillStyle(BOARD_TIP).fillRect(4, 25 + bob, 4, 4).fillRect(24, 25 + bob, 4, 4);
+
+        // Seated shirt body (shorter than standing — knees tucked)
+        g.fillStyle(SHIRT).fillRect(9, 16 + bob, 14, 8);
+        g.fillStyle(0x2060c0).fillRect(12, 16 + bob, 8, 2); // collar
+        // Arms (paddling — slight offset per frame)
+        const paddle = frame === 1 ? -2 : frame === 2 ? 2 : 0;
+        g.fillStyle(SHIRT).fillRect(5, 17 + bob + paddle, 4, 6);
+        g.fillStyle(SHIRT).fillRect(23, 17 + bob - paddle, 4, 6);
+        g.fillStyle(SKIN).fillRect(5, 23 + bob + paddle, 4, 3).fillRect(23, 23 + bob - paddle, 4, 3);
+        // Neck + head (same as standing sprite, shifted down to the seated pose)
+        g.fillStyle(SKIN).fillRect(13, 14 + bob, 6, 3);
+        g.fillStyle(SKIN).fillRect(9, 7 + bob, 14, 10);
+        g.fillStyle(HAT).fillRect(7, 8 + bob, 18, 4).fillRect(9, 4 + bob, 14, 6);
+        g.fillStyle(0xffd700).fillRect(7, 11 + bob, 18, 1);
+        g.fillStyle(HAIR).fillRect(9, 11 + bob, 14, 2);
+
+        g.fillStyle(0x202020);
+        if (dir === 'down') {
+          g.fillRect(12, 13 + bob, 2, 2).fillRect(18, 13 + bob, 2, 2);
+          g.fillStyle(0xff8080).fillRect(14, 16 + bob, 4, 1);
+        } else if (dir === 'left') {
+          g.fillRect(10, 13 + bob, 2, 2);
+          g.fillStyle(HAIR).fillRect(20, 8 + bob, 4, 5);
+        } else if (dir === 'right') {
+          g.fillRect(20, 13 + bob, 2, 2);
+          g.fillStyle(HAIR).fillRect(8, 8 + bob, 4, 5);
+        } else {
+          g.fillStyle(HAIR).fillRect(9, 11 + bob, 14, 6);
+        }
+        g.generateTexture(`player_surf_${dir}_${frame}`, W, H);
+      }
+    });
+
     g.destroy();
   }
 

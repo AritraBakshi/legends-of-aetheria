@@ -14,6 +14,11 @@ const TILE_TEXTURES: Record<number, string> = {
   [TILE.FLOOR]: 'tile_floor', [TILE.ROOF]: 'tile_roof', [TILE.FLOWER]: 'tile_flower',
   [TILE.DOOR]: 'tile_door', [TILE.SIGN]: 'tile_sign',
   [TILE.BOULDER]: 'tile_boulder', [TILE.ROCK_PATH]: 'tile_rockpath', [TILE.MUD]: 'tile_mud',
+  [TILE.CAVE_FLOOR]: 'tile_cave',
+  [TILE.WALL_CORAL]: 'tile_wall_coral', [TILE.ROOF_CORAL]: 'tile_roof_coral', [TILE.SEAWEED]: 'tile_seaweed',
+  [TILE.SAND]: 'tile_sand',
+  [TILE.PALM]: 'tile_palm', [TILE.SHELL]: 'tile_shell', [TILE.DOCK]: 'tile_dock',
+  [TILE.FENCE]: 'tile_fence', [TILE.CRYSTAL]: 'tile_crystal',
 };
 
 export class OverworldScene extends Phaser.Scene {
@@ -55,6 +60,7 @@ export class OverworldScene extends Phaser.Scene {
     this.setupInput();
     this.createDayNightOverlay();
     this.showLocationBanner();
+    this.migrateRetroactiveSurf();
 
     // One-time map tip
     const mapFlag = `visited_${this.mapData.id}`;
@@ -288,8 +294,14 @@ export class OverworldScene extends Phaser.Scene {
     if (this.walkTimer > 200) {
       this.walkTimer = 0;
       this.walkFrame = this.isMoving ? (this.walkFrame + 1) % 3 : 0;
-      this.playerSprite?.setTexture(`player_${this.playerDir}_${this.walkFrame}`);
+      this.playerSprite?.setTexture(`player_${this.spritePrefix()}${this.playerDir}_${this.walkFrame}`);
     }
+  }
+
+  /** Prefix ('' or 'surf_') for the player texture key, based on the tile currently stood on. */
+  private spritePrefix(): string {
+    const tile = this.mapData.tiles[gameState.playerY]?.[gameState.playerX];
+    return ((tile === TILE.WATER || tile === TILE.SEAWEED) && gameState.getFlag('hasSurf')) ? 'surf_' : '';
   }
 
   private handleMovement() {
@@ -300,7 +312,7 @@ export class OverworldScene extends Phaser.Scene {
     else if (this.cursors.down.isDown  || this.wasd.down.isDown)  { dy =  1; this.playerDir = 'down'; }
     else return;
 
-    this.playerSprite?.setTexture(`player_${this.playerDir}_0`);
+    this.playerSprite?.setTexture(`player_${this.spritePrefix()}${this.playerDir}_0`);
     const newX = gameState.playerX + dx;
     const newY = gameState.playerY + dy;
 
@@ -345,9 +357,24 @@ export class OverworldScene extends Phaser.Scene {
     // Check trainer line-of-sight (3 tiles ahead of trainer)
     if (this.checkTrainerSight()) return;
 
-    // Wild encounter in tall grass
+    // Wild encounters: tall grass, any cave-floor tile, or open water while
+    // surfing — never inside a city, regardless of tile.
     const tileId = this.mapData.tiles[gameState.playerY]?.[gameState.playerX];
-    if (tileId === TILE.TALL_GRASS && gameState.party.length > 0) {
+    const onEncounterTile =
+      tileId === TILE.TALL_GRASS ||
+      (this.mapData.isCave && (tileId === TILE.FLOOR || tileId === TILE.ROCK_PATH || tileId === TILE.CAVE_FLOOR)) ||
+      ((tileId === TILE.WATER || tileId === TILE.SEAWEED) && gameState.getFlag('hasSurf'));
+
+    // Repel: ticks down every step regardless of terrain, and fully
+    // suppresses wild encounters while active.
+    if (gameState.repelSteps > 0) {
+      gameState.repelSteps--;
+      if (gameState.repelSteps === 0) {
+        this.showDialogue(["Repel's effect wore off!"], 'Repel');
+      }
+    }
+
+    if (!this.mapData.isCity && onEncounterTile && gameState.party.length > 0 && gameState.repelSteps <= 0) {
       gameState.encounterSteps++;
       if (gameState.encounterSteps >= gameState.nextEncounterAt) {
         gameState.encounterSteps = 0;
@@ -410,8 +437,8 @@ export class OverworldScene extends Phaser.Scene {
     let creatureId = baseCreatureId;
     // Walk the full evolution chain — a creature may evolve multiple times over rematches
     let data = getCreatureById(creatureId)!;
-    while (data.evolutionLevel && data.evolvesInto && level >= data.evolutionLevel) {
-      creatureId = data.evolvesInto;
+    while (data.evolutionLevel && level >= data.evolutionLevel && (data.evolvesInto || data.evolutionBranches?.length)) {
+      creatureId = data.evolvesInto ?? data.evolutionBranches![0].evolvesInto;
       data = getCreatureById(creatureId) ?? data;
     }
     gameState.seenCreatures.add(creatureId);
@@ -485,6 +512,7 @@ export class OverworldScene extends Phaser.Scene {
                 if (npc.isDungeonMaster) {
                   // Dungeon cleared — streak stands as proof; a fresh run starts next entry.
                   gameState.setFlag(`dungeon_cleared_${npc.dungeonId}`, true);
+                  this.checkSurfUnlock(npc);
                 } else if (!gameState.getFlag(`dungeon_run_beaten_${npc.id}`)) {
                   gameState.setFlag(`dungeon_run_beaten_${npc.id}`, true);
                   gameState.incrementCounter(`dungeon_streak_${npc.dungeonId}`);
@@ -501,6 +529,57 @@ export class OverworldScene extends Phaser.Scene {
         this.scene.setActive(false, 'Overworld');
         this.scene.setVisible(false, 'Overworld');
       });
+    });
+  }
+
+  /**
+   * Pre-update saves may have already beaten the Earth Dungeon Master once
+   * (or more) before Surf existed as a reward. Rather than force a re-beat,
+   * grant Surf retroactively the first time such a save loads. Safe to run
+   * every scene create — it's a no-op once `hasSurf` is set.
+   */
+  private migrateRetroactiveSurf() {
+    if (gameState.getFlag('hasSurf')) return;
+    const alreadyBeatenMaster =
+      gameState.getFlag('beaten_earth_dungeon_master') ||
+      gameState.getCounter('rematch_earth_dungeon_master') >= 1;
+    if (!alreadyBeatenMaster) return;
+
+    gameState.setFlag('hasSurf', true);
+    gameState.addItem(40, 1);
+    this.time.delayedCall(500, () => {
+      this.showDialogue(
+        [
+          'A weathered board, carved from deepest Earthen stone, appears in your bag...',
+          'You already proved yourself against the Earth Dungeon Master.',
+          'You obtained SURF! You can now glide across open water anywhere in the overworld.',
+        ],
+        'Tutorial',
+      );
+    });
+  }
+
+  /**
+   * Surf unlock: awarded globally (not tied to any creature) the second time
+   * the player beats the Earth Dungeon Master. `rematch_${npc.id}` is
+   * incremented on every win, so a value of 2 means "beaten twice."
+   */
+  private checkSurfUnlock(npc: NPC) {
+    if (npc.id !== 'earth_dungeon_master') return;
+    if (gameState.getFlag('hasSurf')) return;
+    if (gameState.getCounter(`rematch_${npc.id}`) !== 2) return;
+
+    gameState.setFlag('hasSurf', true);
+    gameState.addItem(40, 1);
+    this.time.delayedCall(500, () => {
+      this.showDialogue(
+        [
+          'Dungeon Master Tarrok: Twice beaten, and still you stand before me.',
+          'Take this — a board carved from the deepest Earthen stone.',
+          'You obtained SURF! You can now glide across open water anywhere in the overworld.',
+        ],
+        'Tarrok',
+      );
     });
   }
 
@@ -542,7 +621,9 @@ export class OverworldScene extends Phaser.Scene {
   private isCollidingAt(x: number, y: number): boolean {
     const { width, height, tiles } = this.mapData;
     if (x < 0 || y < 0 || x >= width || y >= height) return true;
-    return TILE_SOLID.has(tiles[y]?.[x]);
+    const tile = tiles[y]?.[x];
+    if ((tile === TILE.WATER || tile === TILE.SEAWEED) && gameState.getFlag('hasSurf')) return false;
+    return TILE_SOLID.has(tile);
   }
 
   private tryInteract() {

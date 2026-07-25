@@ -32,6 +32,7 @@ class GameState {
   steps = 0;
   encounterSteps = 0;
   nextEncounterAt = Math.floor(Math.random() * 5) + 5;
+  repelSteps = 0;
 
   load(): boolean {
     const data = loadGame();

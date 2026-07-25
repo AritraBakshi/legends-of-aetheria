@@ -15,6 +15,9 @@ export const ITEMS: Item[] = [
   { id: 24, name: 'Full Cure', type: 'status_cure', curesStatus: ['burn', 'poison', 'paralysis', 'sleep', 'freeze', 'confusion'], description: 'Cures any status condition.' },
   { id: 30, name: 'XP-Shot', type: 'xp_boost', xpAmount: 1000, description: 'Grants 1000 EXP to one creature.' },
   { id: 31, name: 'XP-Shot Plus', type: 'xp_boost', xpAmount: 20000, description: 'Grants 20000 EXP to one creature.' },
+  { id: 40, name: 'Surf', type: 'key', description: 'A weathered board humming with Earth-forged energy. Lets you glide across any open water in the overworld.' },
+  { id: 50, name: 'Repel', type: 'repel', repelSteps: 100, description: 'Keeps weak wild creatures away for 100 steps.' },
+  { id: 51, name: 'Super Repel', type: 'repel', repelSteps: 200, description: 'Keeps weak wild creatures away for 200 steps.' },
 ];
 
 export function getItemById(id: number): Item | undefined {

@@ -326,6 +326,122 @@ export const CREATURES: CreatureData[] = [
       { level: 55, moveId: 197 }, { level: 58, moveId: 206 },
     ],
   },
+
+  // ─── CHIMLET LINE — split evolution by learned move type ────────────────────
+  {
+    id: 31, name: 'Chimlet', type: ['Normal'],
+    description: 'A curious young ape whose instincts haven\'t settled — what it becomes depends on what it learns.',
+    baseStats: { hp: 50, atk: 58, def: 42, spatk: 35, spdef: 42, spd: 55 },
+    ability: 'Adaptive — takes on traits of whatever it eats', catchRate: 120, rarity: 'uncommon',
+    evolutionLevel: 26,
+    evolutionBranches: [
+      { requiresMoveType: 'Fighting', evolvesInto: 33 }, // Wildstrike
+      { requiresMoveType: 'Ice', evolvesInto: 32 },       // Permafist
+    ],
+    // Neither branch move survives the natural level-up cycle by level 26 —
+    // Chimlet simply won't evolve until the player deliberately visits the
+    // Move Reminder to reclaim EITHER Ice Shard (-> Permafist) or Karate
+    // Chop (-> Wildstrike), a real symmetric choice for either branch.
+    learnset: [
+      { level: 1, moveId: 1 }, { level: 1, moveId: 4 }, { level: 8, moveId: 5 },
+      { level: 12, moveId: 190 }, { level: 16, moveId: 210 }, { level: 18, moveId: 105 },
+      { level: 20, moveId: 103 }, { level: 22, moveId: 100 }, { level: 24, moveId: 106 },
+    ],
+  },
+  {
+    id: 32, name: 'Permafist', type: ['Ice', 'Fighting'],
+    description: 'A hulking yeti whose ice-hardened fists can shatter boulders in a single blow.',
+    baseStats: { hp: 95, atk: 105, def: 95, spatk: 40, spdef: 70, spd: 35 },
+    ability: 'Frozen Fists — Ice moves may freeze on contact', catchRate: 45, rarity: 'rare',
+    learnset: [
+      { level: 28, moveId: 194 }, { level: 32, moveId: 214 },
+      { level: 38, moveId: 192 }, { level: 46, moveId: 217 },
+    ],
+  },
+  {
+    id: 33, name: 'Wildstrike', type: ['Fighting', 'Normal'],
+    description: 'An elusive forest brawler, faster and lighter than its icy cousin, striking before it\'s even seen.',
+    baseStats: { hp: 72, atk: 98, def: 58, spatk: 35, spdef: 55, spd: 105 },
+    ability: 'Adrenaline Rush — Speed rises when HP is low', catchRate: 45, rarity: 'rare',
+    learnset: [
+      { level: 28, moveId: 211 }, { level: 32, moveId: 215 },
+      { level: 38, moveId: 213 }, { level: 46, moveId: 212 },
+    ],
+  },
+
+  // ─── GLIMMANE LINE — split evolution by learned move type ───────────────────
+  {
+    id: 34, name: 'Glimmane', type: ['Fairy'],
+    description: 'A foal wrapped in unformed magic, its sparkling mane hinting at power yet to bloom.',
+    baseStats: { hp: 48, atk: 40, def: 45, spatk: 60, spdef: 55, spd: 52 },
+    ability: 'Unbound Grace — raises evasion when healthy', catchRate: 120, rarity: 'uncommon',
+    evolutionLevel: 26,
+    evolutionBranches: [
+      { requiresMoveType: 'Earth', evolvesInto: 36 }, // Gleamhorn
+      { requiresMoveType: 'Wind', evolvesInto: 35 },  // Cloudmane
+    ],
+    // Same fix as Chimlet: neither Gust nor Pebble Toss survives natural
+    // leveling by level 26 — Glimmane won't evolve until the player
+    // deliberately reclaims one via the Move Reminder.
+    learnset: [
+      { level: 1, moveId: 220 }, { level: 1, moveId: 4 }, { level: 8, moveId: 5 },
+      { level: 12, moveId: 60 }, { level: 16, moveId: 50 }, { level: 18, moveId: 224 },
+      { level: 20, moveId: 105 }, { level: 22, moveId: 103 }, { level: 24, moveId: 100 },
+    ],
+  },
+  {
+    id: 35, name: 'Cloudmane', type: ['Fairy', 'Wind'],
+    description: 'A pegasus of cloud and light, said to outrace the wind itself.',
+    baseStats: { hp: 68, atk: 50, def: 55, spatk: 98, spdef: 72, spd: 108 },
+    ability: 'Tailwind Spirit — Speed rises in clear skies', catchRate: 45, rarity: 'rare',
+    learnset: [
+      { level: 26, moveId: 61 }, { level: 30, moveId: 221 },
+      { level: 36, moveId: 222 }, { level: 44, moveId: 161 },
+    ],
+  },
+  {
+    id: 36, name: 'Gleamhorn', type: ['Fairy', 'Earth'],
+    description: 'A unicorn whose crystalline horn channels the earth\'s own ancient magic.',
+    baseStats: { hp: 88, atk: 58, def: 92, spatk: 88, spdef: 98, spd: 48 },
+    ability: 'Gentle Ward — Sp.Def rises when healed', catchRate: 45, rarity: 'rare',
+    learnset: [
+      { level: 26, moveId: 54 }, { level: 30, moveId: 225 },
+      { level: 36, moveId: 223 }, { level: 44, moveId: 151 },
+    ],
+  },
+
+  // ─── SPARKUB LINE — straight 3-stage line, no branching ─────────────────────
+  {
+    id: 37, name: 'Sparkub', type: ['Electric'],
+    description: 'A lion cub whose mane crackles faintly with static whenever it gets excited.',
+    baseStats: { hp: 48, atk: 58, def: 40, spatk: 60, spdef: 42, spd: 68 },
+    ability: 'Static Mane — may paralyze on contact', catchRate: 150, rarity: 'uncommon',
+    evolutionLevel: 20, evolvesInto: 38,
+    learnset: [
+      { level: 1, moveId: 1 }, { level: 1, moveId: 40 }, { level: 6, moveId: 4 },
+      { level: 12, moveId: 44 }, { level: 18, moveId: 43 },
+    ],
+  },
+  {
+    id: 38, name: 'Boltmane', type: ['Electric'],
+    description: 'An adult lion whose mane has become a crown of living lightning.',
+    baseStats: { hp: 68, atk: 88, def: 62, spatk: 85, spdef: 60, spd: 95 },
+    ability: 'Static Mane — may paralyze on contact', catchRate: 75, rarity: 'uncommon',
+    evolutionLevel: 38, evolvesInto: 39,
+    learnset: [
+      { level: 22, moveId: 141 }, { level: 28, moveId: 41 }, { level: 34, moveId: 143 },
+    ],
+  },
+  {
+    id: 39, name: 'Stormgryph', type: ['Electric', 'Wind'],
+    description: 'A storm-crowned griffin that commands lightning and wind together, said to nest only above the clouds.',
+    baseStats: { hp: 88, atk: 105, def: 85, spatk: 112, spdef: 88, spd: 118 },
+    ability: 'Storm Caller — Wind moves strike first in a storm', catchRate: 30, rarity: 'rare',
+    learnset: [
+      { level: 40, moveId: 61 }, { level: 45, moveId: 142 },
+      { level: 50, moveId: 161 }, { level: 56, moveId: 42 },
+    ],
+  },
 ];
 
 export function getCreatureById(id: number): CreatureData | undefined {
@@ -355,7 +471,10 @@ export function getFullLearnset(dataId: number): LearnableMove[] {
   let current = getCreatureById(dataId);
   while (current) {
     chain.unshift(current);
-    const pre = CREATURES.find(c => c.evolvesInto === current!.id);
+    const pre = CREATURES.find(c =>
+      c.evolvesInto === current!.id ||
+      c.evolutionBranches?.some(b => b.evolvesInto === current!.id)
+    );
     current = pre;
   }
 

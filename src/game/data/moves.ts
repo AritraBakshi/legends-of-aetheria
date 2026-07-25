@@ -139,6 +139,26 @@ export const MOVES: Move[] = [
   { id: 206, name: 'Outrage', type: 'Dragon', category: 'Physical', power: 110, accuracy: 90, pp: 10, description: 'A powerful, reckless draconic rampage.' },
   { id: 207, name: 'Draco Meteor', type: 'Dragon', category: 'Special', power: 130, accuracy: 75, pp: 5, description: 'Summons meteors for massive damage, but harshly lowers the user\'s Sp.Atk.', effect: { type: 'stat', target: 'self', stat: 'spatk', stages: -2, chance: 100 } },
 
+  // Fighting (new type)
+  { id: 210, name: 'Karate Chop', type: 'Fighting', category: 'Physical', power: 40, accuracy: 100, pp: 30, description: 'A basic chopping strike.' },
+  { id: 211, name: 'Mach Punch', type: 'Fighting', category: 'Physical', power: 40, accuracy: 100, pp: 20, description: 'A punch thrown at blinding speed.', effect: { type: 'priority', target: 'self', priority: 1 } },
+  { id: 212, name: 'Focus Blast', type: 'Fighting', category: 'Special', power: 100, accuracy: 75, pp: 10, description: 'A concentrated blast of fighting spirit.' },
+  { id: 213, name: 'Brick Break', type: 'Fighting', category: 'Physical', power: 75, accuracy: 100, pp: 15, description: 'A sharp, disciplined strike.' },
+  { id: 214, name: 'Bulk Up', type: 'Fighting', category: 'Status', power: 0, accuracy: 100, pp: 20, description: 'Tenses its muscles, boosting Attack.', effect: { type: 'stat', target: 'self', stat: 'atk', stages: 1, chance: 100 } },
+  { id: 215, name: 'Low Sweep', type: 'Fighting', category: 'Physical', power: 55, accuracy: 95, pp: 20, description: 'A low kick that may slow the foe.', effect: { type: 'stat', target: 'opponent', stat: 'spd', stages: -1, chance: 60 } },
+  { id: 216, name: 'Counter Slam', type: 'Fighting', category: 'Physical', power: 45, accuracy: 90, pp: 10, description: 'Always deals exactly 45 damage.', fixedDamage: 45 },
+  { id: 217, name: 'Close Combat', type: 'Fighting', category: 'Physical', power: 120, accuracy: 100, pp: 5, description: 'An all-out flurry that lowers the user\'s Defense.', effect: { type: 'stat', target: 'self', stat: 'def', stages: -1, chance: 100 } },
+
+  // Fairy (new type)
+  { id: 220, name: 'Fairy Wind', type: 'Fairy', category: 'Special', power: 40, accuracy: 100, pp: 30, description: 'A gentle gust of sparkling wind.' },
+  { id: 221, name: 'Sweet Kiss', type: 'Fairy', category: 'Status', power: 0, accuracy: 90, pp: 15, description: 'A dazzling kiss that leaves the foe confused.', effect: { type: 'status', target: 'opponent', status: 'confusion', chance: 100 } },
+  { id: 222, name: 'Moonblast', type: 'Fairy', category: 'Special', power: 90, accuracy: 100, pp: 10, description: 'A beam of moonlight energy.', effect: { type: 'stat', target: 'opponent', stat: 'spatk', stages: -1, chance: 30 } },
+  { id: 223, name: 'Dazzling Gleam', type: 'Fairy', category: 'Special', power: 80, accuracy: 100, pp: 15, description: 'Releases a blinding, radiant flash.' },
+  { id: 224, name: 'Charm Aura', type: 'Fairy', category: 'Status', power: 0, accuracy: 100, pp: 20, description: 'An overwhelming charm that harshly lowers the foe\'s Attack.', effect: { type: 'stat', target: 'opponent', stat: 'atk', stages: -2, chance: 100 } },
+  { id: 225, name: 'Fairy Veil', type: 'Fairy', category: 'Status', power: 0, accuracy: 100, pp: 20, description: 'Wraps the user in a protective shimmer, raising Sp.Def.', effect: { type: 'stat', target: 'self', stat: 'spdef', stages: 1, chance: 100 } },
+  { id: 226, name: 'Starlight Burst', type: 'Fairy', category: 'Special', power: 35, accuracy: 90, pp: 10, description: 'Always deals exactly 35 damage.', fixedDamage: 35 },
+  { id: 227, name: 'Fey Radiance', type: 'Fairy', category: 'Special', power: 110, accuracy: 85, pp: 5, description: 'An overwhelming surge of fey magic that lowers the user\'s Sp.Atk.', effect: { type: 'stat', target: 'self', stat: 'spatk', stages: -1, chance: 100 } },
+
   // Starter signature moves — each learned only by the base starter at level 1;
   // their evolutions inherit them automatically via getFullLearnset().
   { id: 300, name: 'Ember Core', type: 'Fire', category: 'Special', power: 75, accuracy: 100, pp: 10, description: 'Embrix\'s signature move: a concentrated core of pure flame.', effect: { type: 'status', target: 'opponent', status: 'burn', chance: 20 } },

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { hasSaveData } from '../systems/SaveSystem';
 import { gameState } from '../GameState';
+import { NEWS } from '../data/news';
+import { createScrollArea, type ScrollAreaHandle } from './scrollArea';
 
 export class TitleScene extends Phaser.Scene {
   private stars: Phaser.GameObjects.Graphics[] = [];
@@ -92,7 +94,7 @@ export class TitleScene extends Phaser.Scene {
     this.drawCreatureSilhouettes();
 
     // Menu options
-    this.options = hasSaveData() ? ['New Game', 'Continue', 'Options'] : ['New Game', 'Options'];
+    this.options = hasSaveData() ? ['New Game', 'Continue', 'News', 'Options'] : ['New Game', 'News', 'Options'];
 
     const menuStartY = H * 0.62;
     this.options.forEach((opt, i) => {
@@ -203,6 +205,8 @@ export class TitleScene extends Phaser.Scene {
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('Overworld');
       });
+    } else if (opt === 'News') {
+      this.showNewsPanel();
     } else if (opt === 'Options') {
       this.showOptionsMenu();
     }
@@ -395,6 +399,94 @@ export class TitleScene extends Phaser.Scene {
       all.forEach(o => o.destroy()); closeBtn.destroy();
       this.canSelect = true;
     });
+  }
+
+  private showNewsPanel() {
+    const W = this.scale.width, H = this.scale.height;
+
+    // Snapshot everything already in the scene (stars, mountains, title
+    // logo, menu items, etc.) BEFORE building the modal, so the scroll
+    // camera below can be told to ignore all of it — otherwise it renders
+    // the whole background scene (cropped to its own viewport) underneath
+    // the news text, since it only knew to ignore the modal's own chrome.
+    const preExisting = [...this.children.list];
+
+    const dim = this.add.graphics().setDepth(50);
+    dim.fillStyle(0x000000, 0.7).fillRect(0, 0, W, H);
+
+    const pw = 460, ph = 420;
+    const px = (W - pw) / 2, py = (H - ph) / 2;
+    const panel = this.add.graphics().setDepth(51);
+    panel.fillStyle(0x0d1a2e, 0.98).fillRoundedRect(px, py, pw, ph, 10);
+    panel.lineStyle(3, 0xffd700).strokeRoundedRect(px, py, pw, ph, 10);
+
+    const title = this.add.text(W / 2, py + 18, '📰  NEWS', {
+      fontSize: '20px', fontFamily: 'monospace', color: '#ffd700',
+    }).setOrigin(0.5).setDepth(52);
+
+    const all: Phaser.GameObjects.GameObject[] = [...preExisting, dim, panel, title];
+    const modalOnly: Phaser.GameObjects.GameObject[] = [dim, panel, title];
+
+    const viewX = px + 16, viewY = py + 46, viewW = pw - 32, viewH = ph - 96;
+
+    // Lay out every entry's title/date/bullets into the scrollable container,
+    // measuring height as we go so the scroll area knows the true content size.
+    const rows = this.add.container(0, 0);
+    let cursorY = 0;
+    const wrapWidth = viewW - 16;
+
+    NEWS.forEach((entry, i) => {
+      if (i > 0) cursorY += 14; // gap between entries
+
+      const dateTxt = this.add.text(0, cursorY, entry.date, {
+        fontSize: '10px', fontFamily: 'monospace', color: '#5878a8',
+      });
+      rows.add(dateTxt);
+      cursorY += 14;
+
+      const titleTxt = this.add.text(0, cursorY, entry.title, {
+        fontSize: '15px', fontFamily: 'monospace', color: '#ffd700',
+      });
+      rows.add(titleTxt);
+      cursorY += titleTxt.height + 6;
+
+      for (const bullet of entry.bullets) {
+        const bulletTxt = this.add.text(10, cursorY, `•  ${bullet}`, {
+          fontSize: '12px', fontFamily: 'monospace', color: '#d0e0ff',
+          wordWrap: { width: wrapWidth - 10 }, lineSpacing: 3,
+        });
+        rows.add(bulletTxt);
+        cursorY += bulletTxt.height + 6;
+      }
+
+      if (i < NEWS.length - 1) {
+        const divider = this.add.graphics();
+        divider.lineStyle(1, 0x1c2e46).lineBetween(0, cursorY + 4, wrapWidth, cursorY + 4);
+        rows.add(divider);
+        cursorY += 10;
+      }
+    });
+
+    const scrollArea: ScrollAreaHandle = createScrollArea(
+      this, viewX, viewY, viewW, viewH, cursorY, all, { rowStep: 40 },
+    );
+    scrollArea.container.add(rows);
+
+    const closeBtn = this.add.text(W / 2, py + ph - 16, '[ Close ]', {
+      fontSize: '15px', fontFamily: 'monospace', color: '#ff8080',
+    }).setOrigin(0.5, 1).setDepth(52).setInteractive({ useHandCursor: true });
+    closeBtn.on('pointerover', () => closeBtn.setColor('#ffaaaa'));
+    closeBtn.on('pointerout', () => closeBtn.setColor('#ff8080'));
+    modalOnly.push(closeBtn);
+    const closeAll = () => {
+      modalOnly.forEach(o => o.destroy());
+      scrollArea.destroy();
+      this.canSelect = true;
+    };
+    closeBtn.on('pointerdown', closeAll);
+    all.push(closeBtn);
+
+    this.input.keyboard!.once('keydown-ESC', closeAll);
   }
 }
 
