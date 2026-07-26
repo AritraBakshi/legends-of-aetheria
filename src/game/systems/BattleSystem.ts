@@ -206,6 +206,81 @@ export function applyStatusDamage(creature: ActiveCreature): number {
   return 0;
 }
 
+/**
+ * Inflicts a status, setting up its duration counter where one applies.
+ * Always use this (not a bare `creature.status = x` assignment) so sleep
+ * and confusion actually get a duration — otherwise checkStatusBlocksAction
+ * has nothing to count down and the status silently does nothing.
+ */
+export function inflictStatus(creature: ActiveCreature, status: StatusEffect): void {
+  creature.status = status;
+  if (status === 'sleep') creature.statusTurns = 1 + Math.floor(Math.random() * 3); // 1-3 turns
+  else if (status === 'confusion') creature.statusTurns = 2 + Math.floor(Math.random() * 3); // 2-4 turns
+  else creature.statusTurns = undefined; // burn/poison/paralysis/freeze don't use a turn counter
+}
+
+export interface StatusActionCheck {
+  /** True if the creature cannot use its chosen move this turn. */
+  blocked: boolean;
+  /** Message to show, if any (e.g. "X is paralyzed!", "X woke up!"). */
+  message?: string;
+  /** Set if the creature hurt itself in confusion — apply this damage instead of the move. */
+  selfDamage?: number;
+}
+
+/**
+ * Resolves paralysis/sleep/freeze/confusion for the creature about to act.
+ * Call this AFTER applyStatusDamage (burn/poison tick) and BEFORE running
+ * the creature's chosen move. Cures sleep/freeze/confusion on their own
+ * when they naturally end, same as applyStatusDamage never cures
+ * burn/poison (those are only cured by items).
+ */
+export function checkStatusBlocksAction(creature: ActiveCreature): StatusActionCheck {
+  const status = creature.status;
+
+  if (status === 'paralysis') {
+    if (Math.random() < 0.25) {
+      return { blocked: true, message: `is paralyzed! It can't move!` };
+    }
+    return { blocked: false };
+  }
+
+  if (status === 'sleep') {
+    creature.statusTurns = Math.max(0, (creature.statusTurns ?? 1) - 1);
+    if (creature.statusTurns <= 0) {
+      creature.status = null;
+      creature.statusTurns = undefined;
+      return { blocked: false, message: `woke up!` };
+    }
+    return { blocked: true, message: `is fast asleep.` };
+  }
+
+  if (status === 'freeze') {
+    if (Math.random() < 0.2) {
+      creature.status = null;
+      return { blocked: false, message: `thawed out!` };
+    }
+    return { blocked: true, message: `is frozen solid!` };
+  }
+
+  if (status === 'confusion') {
+    creature.statusTurns = Math.max(0, (creature.statusTurns ?? 1) - 1);
+    if (creature.statusTurns <= 0) {
+      creature.status = null;
+      creature.statusTurns = undefined;
+      return { blocked: false, message: `snapped out of confusion!` };
+    }
+    if (Math.random() < 1 / 3) {
+      const selfDamage = Math.max(1, Math.floor(creature.maxHp / 10));
+      creature.currentHp = Math.max(0, creature.currentHp - selfDamage);
+      return { blocked: true, message: `is confused! It hurt itself in its confusion!`, selfDamage };
+    }
+    return { blocked: false, message: `is confused!` };
+  }
+
+  return { blocked: false };
+}
+
 export function isFainted(creature: ActiveCreature): boolean {
   return creature.currentHp <= 0;
 }

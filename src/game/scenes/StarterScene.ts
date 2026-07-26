@@ -221,6 +221,18 @@ export class StarterScene extends Phaser.Scene {
   private confirmSelection() {
     if (this.confirmed) return;
     this.confirmed = true;
+
+    // Belt-and-suspenders: spamming ENTER/SPACE/clicks during the ~900ms
+    // transition window (flash -> delayedCall -> fade -> scene.start) should
+    // never be able to re-enter this method or leak a stray keypress into
+    // whatever scene starts next. The confirmed flag already guards
+    // re-entrancy, but strip the actual input sources too so nothing keeps
+    // queuing.
+    this.input.keyboard!.removeAllListeners();
+    this.input.enabled = false;
+    this.arrowLeft?.disableInteractive();
+    this.arrowRight?.disableInteractive();
+
     const starter = this.starters[this.selectedIndex];
 
     // Flash effect

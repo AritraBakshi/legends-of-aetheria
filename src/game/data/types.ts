@@ -87,6 +87,12 @@ export interface ActiveCreature {
   exp: number;
   expToNext: number;
   status: StatusEffect;
+  /**
+   * Turns remaining for duration-based statuses (sleep, confusion). Unused
+   * for burn/poison/paralysis (no duration) and freeze (pure per-turn thaw
+   * chance instead). Set when the status is first inflicted.
+   */
+  statusTurns?: number;
   isCaught: boolean;
 }
 

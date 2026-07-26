@@ -604,6 +604,7 @@ export class MenuScene extends Phaser.Scene {
             if (!creature.status) { showFeedback(`${data.name} has no status!`, '#ffa040'); return; }
             if (!item.curesStatus?.includes(creature.status)) { showFeedback(`Doesn't cure ${creature.status}!`, '#ffa040'); return; }
             creature.status = null;
+            creature.statusTurns = undefined;
             used = true;
           } else if (item.type === 'xp_boost' && item.xpAmount) {
             const { leveled } = applyExpGain(creature, item.xpAmount);

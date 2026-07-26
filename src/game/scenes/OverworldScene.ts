@@ -662,6 +662,7 @@ export class OverworldScene extends Phaser.Scene {
       if (hasInjured) gameState.party.forEach(c => {
         c.currentHp = c.maxHp;
         c.status = null;
+        c.statusTurns = undefined;
         c.moves.forEach(m => { m.pp = m.maxPp; });
       });
       this.showDialogue(healMsg, npc.name);

@@ -10,7 +10,7 @@ import { MAPS } from '../data/maps';
 import {
   calcDamage, isFainted, calcExpGain, applyExpGain,
   checkEvolution, applyStatusDamage, tryCapture, createActiveCreature,
-  learnNewMoves, sanitizeMoves, getEffectiveStat,
+  learnNewMoves, sanitizeMoves, getEffectiveStat, inflictStatus, checkStatusBlocksAction,
   type BattleCreature,
 } from '../systems/BattleSystem';
 
@@ -750,6 +750,31 @@ export class BattleScene extends Phaser.Scene {
       }
     };
 
+    // Paralysis/sleep/freeze/confusion — resolved AFTER the burn/poison tick
+    // (which can still faint the creature first) and BEFORE it's allowed to
+    // actually use its chosen move.
+    const checkAndProceed = () => {
+      const check = checkStatusBlocksAction(bc.creature);
+      if (check.selfDamage !== undefined) this.updateHPBar(bc.creature, !isEnemy);
+
+      if (!check.message) {
+        if (check.blocked) this.advanceQueue(); else proceed();
+        return;
+      }
+      this.showMessage(`${name} ${check.message}`, () => {
+        if (isFainted(bc.creature)) {
+          this.faintAnimation(sprite);
+          this.showMessage(`${name} fainted!`, () => {
+            if (isEnemy) this.handleEnemyFaint(); else this.handlePlayerFaint();
+          });
+        } else if (check.blocked) {
+          this.advanceQueue();
+        } else {
+          proceed();
+        }
+      });
+    };
+
     const statusDmg = applyStatusDamage(bc.creature);
     if (statusDmg > 0) {
       this.updateHPBar(bc.creature, !isEnemy);
@@ -761,11 +786,11 @@ export class BattleScene extends Phaser.Scene {
             if (isEnemy) this.handleEnemyFaint(); else this.handlePlayerFaint();
           });
         } else {
-          proceed();
+          checkAndProceed();
         }
       });
     } else {
-      proceed();
+      checkAndProceed();
     }
   }
 
@@ -827,7 +852,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (move.effect?.type === 'status' && move.effect.chance && Math.random() * 100 < (move.effect.chance ?? 0)) {
       if (!defender.creature.status && move.effect.status) {
-        defender.creature.status = move.effect.status;
+        inflictStatus(defender.creature, move.effect.status);
         msg += ` ${defenderName} is ${move.effect.status}!`;
       }
     }
@@ -892,7 +917,7 @@ export class BattleScene extends Phaser.Scene {
       this.healSparkle(attackerSprite);
     } else if (move.effect?.type === 'status' && move.effect.status) {
       if (!defender.creature.status) {
-        defender.creature.status = move.effect.status;
+        inflictStatus(defender.creature, move.effect.status);
         msg = `${defenderName} is now ${move.effect.status}!`;
         this.statusPulse(defenderSprite, move.effect.status);
       } else {
@@ -1283,7 +1308,7 @@ export class BattleScene extends Phaser.Scene {
   // ── END BATTLE ────────────────────────────────────────────────────────────────
   private endBattle(result: string) {
     if (result === 'blackout') {
-      gameState.party.forEach(c => { c.currentHp = Math.max(1, Math.floor(c.maxHp * 0.5)); c.status = null; });
+      gameState.party.forEach(c => { c.currentHp = Math.max(1, Math.floor(c.maxHp * 0.5)); c.status = null; c.statusTurns = undefined; });
       gameState.mapId = gameState.lastHealMapId;
       gameState.playerX = gameState.lastHealX;
       gameState.playerY = gameState.lastHealY;
