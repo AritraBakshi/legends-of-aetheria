@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { createGame } from './game/config';
+import TouchControls from './components/TouchControls';
 
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -20,17 +21,26 @@ function App() {
 
   return (
     <div
-      ref={containerRef}
       style={{
+        position: 'relative',
         width: '100vw',
         height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         background: '#000',
         overflow: 'hidden',
       }}
-    />
+    >
+      <div
+        ref={containerRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      />
+      <TouchControls />
+    </div>
   );
 }
 

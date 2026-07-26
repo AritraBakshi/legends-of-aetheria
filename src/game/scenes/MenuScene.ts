@@ -21,6 +21,9 @@ export class MenuScene extends Phaser.Scene {
   private activeWheelHandler: ((...args: unknown[]) => void) | null = null;
   private activeUpHandler: (() => void) | null = null;
   private activeDownHandler: (() => void) | null = null;
+  private activeDragStartHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null;
+  private activeDragMoveHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null;
+  private activeDragEndHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null;
   /**
    * Scroll lists use a dedicated camera scoped to the list's viewport for
    * clipping (same technique as the Guide NPC's help screen), instead of
@@ -165,6 +168,13 @@ export class MenuScene extends Phaser.Scene {
     if (this.activeWheelHandler) { this.input.off('wheel', this.activeWheelHandler); this.activeWheelHandler = null; }
     if (this.activeUpHandler)    { this.input.keyboard?.off('keydown-UP', this.activeUpHandler); this.activeUpHandler = null; }
     if (this.activeDownHandler)  { this.input.keyboard?.off('keydown-DOWN', this.activeDownHandler); this.activeDownHandler = null; }
+    if (this.activeDragStartHandler) { this.input.off('pointerdown', this.activeDragStartHandler); this.activeDragStartHandler = null; }
+    if (this.activeDragMoveHandler)  { this.input.off('pointermove', this.activeDragMoveHandler); this.activeDragMoveHandler = null; }
+    if (this.activeDragEndHandler) {
+      this.input.off('pointerup', this.activeDragEndHandler);
+      this.input.off('pointerupoutside', this.activeDragEndHandler);
+      this.activeDragEndHandler = null;
+    }
     this.scrollCams.forEach(cam => this.cameras.remove(cam));
     this.scrollCams = [];
     this.scrollLayers.forEach(layer => layer.destroy());
@@ -232,6 +242,46 @@ export class MenuScene extends Phaser.Scene {
     this.activeDownHandler = () => { scrollY = Phaser.Math.Clamp(scrollY + rowStep, 0, maxScroll); applyScroll(); };
     this.input.keyboard?.on('keydown-UP', this.activeUpHandler);
     this.input.keyboard?.on('keydown-DOWN', this.activeDownHandler);
+
+    // Touch/mouse drag-to-scroll — no wheel or arrow keys on a phone, so
+    // this is the only way to scroll Dex/Party/Bag/Box there. A small move
+    // threshold keeps quick taps on row buttons (swap, release, select)
+    // working normally; only a real drag past DRAG_THRESHOLD scrolls.
+    const DRAG_THRESHOLD = 6;
+    let dragPointerId: number | null = null;
+    let dragging = false;
+    let dragStartY = 0;
+    let scrollStartY = 0;
+
+    this.activeDragStartHandler = (pointer: Phaser.Input.Pointer) => {
+      if (
+        dragPointerId === null &&
+        pointer.x >= viewX && pointer.x <= viewX + viewW &&
+        pointer.y >= viewY && pointer.y <= viewY + viewH
+      ) {
+        dragPointerId = pointer.id;
+        dragging = false;
+        dragStartY = pointer.y;
+        scrollStartY = scrollY;
+      }
+    };
+    this.activeDragMoveHandler = (pointer: Phaser.Input.Pointer) => {
+      if (dragPointerId !== pointer.id) return;
+      const dy = dragStartY - pointer.y;
+      if (!dragging && Math.abs(dy) < DRAG_THRESHOLD) return;
+      dragging = true;
+      scrollY = Phaser.Math.Clamp(scrollStartY + dy, 0, maxScroll);
+      applyScroll();
+    };
+    this.activeDragEndHandler = (pointer: Phaser.Input.Pointer) => {
+      if (dragPointerId !== pointer.id) return;
+      dragPointerId = null;
+      dragging = false;
+    };
+    this.input.on('pointerdown', this.activeDragStartHandler);
+    this.input.on('pointermove', this.activeDragMoveHandler);
+    this.input.on('pointerup', this.activeDragEndHandler);
+    this.input.on('pointerupoutside', this.activeDragEndHandler);
 
     return rows;
   }
@@ -741,7 +791,7 @@ export class MenuScene extends Phaser.Scene {
     this.contentContainer.add(bg);
 
     // Header
-    const allIds      = Array.from({ length: 30 }, (_, i) => i + 1);
+    const allIds      = Array.from({ length: CREATURES.length }, (_, i) => i + 1);
     const seenCount   = allIds.filter(id =>
       gameState.seenCreatures.has(id) || gameState.caughtCreatures.has(id) ||
       gameState.party.some(c => c.dataId === id) || gameState.storage.some(c => c.dataId === id)
@@ -761,13 +811,13 @@ export class MenuScene extends Phaser.Scene {
 
     const listTop  = 48;
     const listH    = panelH - listTop - 12;
-    const totalH   = 30 * this.DEX_ROW_H;
+    const totalH   = CREATURES.length * this.DEX_ROW_H;
 
     // ── Scrollable, clipped rows — built once ──────────────────────────────
     const rowContainer = this.createScrollArea(listTop, listH, totalH, {
       scrollbarX: 498, scrollbarW: 10, rowStep: this.DEX_ROW_H,
     });
-    for (let id = 1; id <= 30; id++) {
+    for (let id = 1; id <= CREATURES.length; id++) {
       const ry = (id - 1) * this.DEX_ROW_H;
 
       const inParty   = gameState.party.some(c => c.dataId === id);

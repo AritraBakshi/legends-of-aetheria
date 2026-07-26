@@ -52,6 +52,9 @@ export function createScrollArea(
   let wheelHandler: ((...a: unknown[]) => void) | null = null;
   let upHandler: (() => void) | null = null;
   let downHandler: (() => void) | null = null;
+  let dragStartHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null;
+  let dragMoveHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null;
+  let dragEndHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null;
   let trackBg: Phaser.GameObjects.Graphics | null = null;
   let thumb: Phaser.GameObjects.Graphics | null = null;
 
@@ -82,12 +85,58 @@ export function createScrollArea(
     downHandler = () => { scrollY = Phaser.Math.Clamp(scrollY + rowStep, 0, maxScroll); applyScroll(); };
     scene.input.keyboard?.on('keydown-UP', upHandler);
     scene.input.keyboard?.on('keydown-DOWN', downHandler);
+
+    // Touch/mouse drag-to-scroll — there's no wheel or arrow keys on a
+    // phone, so this is the only way to scroll the list there. A small
+    // move threshold keeps quick taps on row buttons working normally;
+    // only a real drag past DRAG_THRESHOLD engages scrolling.
+    const DRAG_THRESHOLD = 6;
+    let pointerId: number | null = null;
+    let dragging = false;
+    let dragStartY = 0;
+    let scrollStartY = 0;
+
+    dragStartHandler = (pointer: Phaser.Input.Pointer) => {
+      if (
+        pointerId === null &&
+        pointer.x >= viewX && pointer.x <= viewX + viewW &&
+        pointer.y >= viewY && pointer.y <= viewY + viewH
+      ) {
+        pointerId = pointer.id;
+        dragging = false;
+        dragStartY = pointer.y;
+        scrollStartY = scrollY;
+      }
+    };
+    dragMoveHandler = (pointer: Phaser.Input.Pointer) => {
+      if (pointerId !== pointer.id) return;
+      const dy2 = dragStartY - pointer.y;
+      if (!dragging && Math.abs(dy2) < DRAG_THRESHOLD) return;
+      dragging = true;
+      scrollY = Phaser.Math.Clamp(scrollStartY + dy2, 0, maxScroll);
+      applyScroll();
+    };
+    dragEndHandler = (pointer: Phaser.Input.Pointer) => {
+      if (pointerId !== pointer.id) return;
+      pointerId = null;
+      dragging = false;
+    };
+    scene.input.on('pointerdown', dragStartHandler);
+    scene.input.on('pointermove', dragMoveHandler);
+    scene.input.on('pointerup', dragEndHandler);
+    scene.input.on('pointerupoutside', dragEndHandler);
   }
 
   const destroy = () => {
     if (wheelHandler) scene.input.off('wheel', wheelHandler);
     if (upHandler)    scene.input.keyboard?.off('keydown-UP', upHandler);
     if (downHandler)  scene.input.keyboard?.off('keydown-DOWN', downHandler);
+    if (dragStartHandler) scene.input.off('pointerdown', dragStartHandler);
+    if (dragMoveHandler)  scene.input.off('pointermove', dragMoveHandler);
+    if (dragEndHandler) {
+      scene.input.off('pointerup', dragEndHandler);
+      scene.input.off('pointerupoutside', dragEndHandler);
+    }
     scene.cameras.remove(cam);
     rows.destroy();
     trackBg?.destroy();

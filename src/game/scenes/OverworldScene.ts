@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameState } from '../GameState';
+import { touchInput } from '../TouchInput';
 import { MAPS, TILE, TILE_SIZE, TILE_SOLID } from '../data/maps';
 import type { MapData, NPC } from '../data/types';
 import { createActiveCreature } from '../systems/BattleSystem';
@@ -40,6 +41,7 @@ export class OverworldScene extends Phaser.Scene {
   private npcObjects: { npc: NPC; sprite: Phaser.GameObjects.Graphics }[] = [];
   private moneyText!: Phaser.GameObjects.Text;
   private encounterMeter!: Phaser.GameObjects.Graphics;
+  private lastControlsVisible = true;
 
   constructor() { super('Overworld'); }
 
@@ -233,6 +235,24 @@ export class OverworldScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-ESC',   () => { if (!this.dialogueActive) this.openMenu(); });
     this.input.keyboard!.on('keydown-ENTER', () => { if (!this.isMoving) this.handleInteractKey(); });
     this.input.keyboard!.on('keydown-Z',     () => { if (!this.isMoving) this.handleInteractKey(); });
+
+    // Touch controls (on-screen D-pad / buttons rendered by React). Clear any
+    // listeners left over from a previous create() (this scene is restarted
+    // on every map transition), then rebind.
+    touchInput.removeAllListeners('interact');
+    touchInput.removeAllListeners('menu');
+    touchInput.clearDirections();
+    touchInput.on('interact', () => { if (!this.isMoving && !this.dialogueActive) this.handleInteractKey(); });
+    touchInput.on('menu',     () => { if (!this.dialogueActive) this.openMenu(); });
+
+    // Tell the React layer the overworld is live so it can show the D-pad.
+    window.dispatchEvent(new CustomEvent('lofa:touch-controls', { detail: true }));
+    this.events.once('shutdown', () => {
+      touchInput.removeAllListeners('interact');
+      touchInput.removeAllListeners('menu');
+      touchInput.clearDirections();
+      window.dispatchEvent(new CustomEvent('lofa:touch-controls', { detail: false }));
+    });
   }
 
   private handleInteractKey() {
@@ -276,6 +296,11 @@ export class OverworldScene extends Phaser.Scene {
 
   // ─── UPDATE LOOP ──────────────────────────────────────────────────────────────
   update(_time: number, delta: number) {
+    const controlsVisible = !this.isInBattle && !this.dialogueActive;
+    if (controlsVisible !== this.lastControlsVisible) {
+      this.lastControlsVisible = controlsVisible;
+      window.dispatchEvent(new CustomEvent('lofa:touch-controls', { detail: controlsVisible }));
+    }
     if (this.isInBattle || this.dialogueActive) return;
 
     this.locationTimer += delta;
@@ -306,10 +331,10 @@ export class OverworldScene extends Phaser.Scene {
 
   private handleMovement() {
     let dx = 0, dy = 0;
-    if      (this.cursors.left.isDown  || this.wasd.left.isDown)  { dx = -1; this.playerDir = 'left'; }
-    else if (this.cursors.right.isDown || this.wasd.right.isDown) { dx =  1; this.playerDir = 'right'; }
-    else if (this.cursors.up.isDown    || this.wasd.up.isDown)    { dy = -1; this.playerDir = 'up'; }
-    else if (this.cursors.down.isDown  || this.wasd.down.isDown)  { dy =  1; this.playerDir = 'down'; }
+    if      (this.cursors.left.isDown  || this.wasd.left.isDown  || touchInput.left)  { dx = -1; this.playerDir = 'left'; }
+    else if (this.cursors.right.isDown || this.wasd.right.isDown || touchInput.right) { dx =  1; this.playerDir = 'right'; }
+    else if (this.cursors.up.isDown    || this.wasd.up.isDown    || touchInput.up)    { dy = -1; this.playerDir = 'up'; }
+    else if (this.cursors.down.isDown  || this.wasd.down.isDown  || touchInput.down)  { dy =  1; this.playerDir = 'down'; }
     else return;
 
     this.playerSprite?.setTexture(`player_${this.spritePrefix()}${this.playerDir}_0`);
@@ -762,10 +787,12 @@ export class OverworldScene extends Phaser.Scene {
       onClose: () => {
         this.scene.setActive(true, 'Overworld');
         this.scene.setVisible(true, 'Overworld');
+        window.dispatchEvent(new CustomEvent('lofa:touch-controls', { detail: true }));
       },
     });
     this.scene.setActive(false, 'Overworld');
     this.scene.setVisible(false, 'Overworld');
+    window.dispatchEvent(new CustomEvent('lofa:touch-controls', { detail: false }));
   }
 }
 
