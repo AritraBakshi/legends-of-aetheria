@@ -159,6 +159,12 @@ export const MOVES: Move[] = [
   { id: 226, name: 'Starlight Burst', type: 'Fairy', category: 'Special', power: 35, accuracy: 90, pp: 10, description: 'Always deals exactly 35 damage.', fixedDamage: 35 },
   { id: 227, name: 'Fey Radiance', type: 'Fairy', category: 'Special', power: 110, accuracy: 85, pp: 5, description: 'An overwhelming surge of fey magic that lowers the user\'s Sp.Atk.', effect: { type: 'stat', target: 'self', stat: 'spatk', stages: -1, chance: 100 } },
 
+  // Weather-setting moves
+  { id: 230, name: 'Sunny Day', type: 'Fire', category: 'Status', power: 0, accuracy: 100, pp: 10, description: 'Summons harsh sunlight for several turns.', effect: { type: 'weather', target: 'self', weather: 'sun', chance: 100 } },
+  { id: 231, name: 'Rain Dance', type: 'Water', category: 'Status', power: 0, accuracy: 100, pp: 10, description: 'Summons a heavy rain for several turns.', effect: { type: 'weather', target: 'self', weather: 'rain', chance: 100 } },
+  { id: 232, name: 'Snowfall', type: 'Ice', category: 'Status', power: 0, accuracy: 100, pp: 10, description: 'Blankets the field in snow for several turns.', effect: { type: 'weather', target: 'self', weather: 'snow', chance: 100 } },
+  { id: 233, name: 'Stormcall', type: 'Wind', category: 'Status', power: 0, accuracy: 100, pp: 10, description: 'Summons a howling storm for several turns.', effect: { type: 'weather', target: 'self', weather: 'storm', chance: 100 } },
+
   // Starter signature moves — each learned only by the base starter at level 1;
   // their evolutions inherit them automatically via getFullLearnset().
   { id: 300, name: 'Ember Core', type: 'Fire', category: 'Special', power: 75, accuracy: 100, pp: 10, description: 'Embrix\'s signature move: a concentrated core of pure flame.', effect: { type: 'status', target: 'opponent', status: 'burn', chance: 20 } },

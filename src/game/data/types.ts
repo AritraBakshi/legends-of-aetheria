@@ -4,8 +4,10 @@ export type MoveCategory = 'Physical' | 'Special' | 'Status';
 
 export type StatusEffect = 'burn' | 'poison' | 'paralysis' | 'sleep' | 'freeze' | 'confusion' | null;
 
+export type WeatherType = 'clear' | 'sun' | 'rain' | 'snow' | 'storm';
+
 export interface MoveEffect {
-  type: 'stat' | 'status' | 'heal' | 'recoil' | 'priority';
+  type: 'stat' | 'status' | 'heal' | 'recoil' | 'priority' | 'weather';
   target: 'self' | 'opponent';
   stat?: 'atk' | 'def' | 'spatk' | 'spdef' | 'spd' | 'acc';
   stages?: number;
@@ -15,6 +17,8 @@ export interface MoveEffect {
   priority?: number;
   /** Flat HP damage dealt back to the user (used by recoil effects). */
   recoilFlat?: number;
+  /** Weather summoned by this move (e.g. Sunny Day -> 'sun'). */
+  weather?: WeatherType;
 }
 
 export interface Move {
@@ -51,6 +55,12 @@ export interface CreatureData {
     spd: number;
   };
   ability: string;
+  /**
+   * Machine-readable ability key used to look up actual mechanical effects
+   * (see src/game/systems/Abilities.ts). `ability` above stays as flavor
+   * text shown in the Dex/party screens — this is what battle code checks.
+   */
+  abilityId?: string;
   catchRate: number;
   evolutionLevel?: number;
   evolvesInto?: number;

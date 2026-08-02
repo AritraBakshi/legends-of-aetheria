@@ -449,8 +449,8 @@ export class MenuScene extends Phaser.Scene {
 
     // Detail panel background
     const detailBg = this.add.graphics();
-    detailBg.fillStyle(0x0b1828).fillRoundedRect(10, y, panelW, 210, 8);
-    detailBg.lineStyle(2, typeColor, 0.5).strokeRoundedRect(10, y, panelW, 210, 8);
+    detailBg.fillStyle(0x0b1828).fillRoundedRect(10, y, panelW, 234, 8);
+    detailBg.lineStyle(2, typeColor, 0.5).strokeRoundedRect(10, y, panelW, 234, 8);
     this.contentContainer.add(detailBg);
 
     // Creature name header
@@ -478,6 +478,20 @@ export class MenuScene extends Phaser.Scene {
       fontSize: '10px', fontFamily: 'monospace', color: '#405080',
     }));
 
+    // ── Ability ──────────────────────────────────────────────────────────────────
+    const [abilityName, abilityDesc] = data.ability.split('—').map(s => s.trim());
+    this.contentContainer.add(this.add.text(22, y + 40, 'Ability:', {
+      fontSize: '10px', fontFamily: 'monospace', color: '#5080a0',
+    }));
+    this.contentContainer.add(this.add.text(70, y + 40, abilityName, {
+      fontSize: '10px', fontFamily: 'monospace', color: '#ffd700',
+    }));
+    if (abilityDesc) {
+      this.contentContainer.add(this.add.text(22, y + 54, abilityDesc, {
+        fontSize: '9px', fontFamily: 'monospace', color: '#8090a0',
+      }));
+    }
+
     // ── Stats block ─────────────────────────────────────────────────────────────
     const stats: Array<[string, number, number]> = [
       ['HP',    creature.maxHp,        220],
@@ -488,7 +502,7 @@ export class MenuScene extends Phaser.Scene {
       ['SPD',   creature.stats.spd,    110],
     ];
     const maxStatVal = 220; // rough cap for bar scaling
-    const statTop = y + 44;
+    const statTop = y + 68;
     const COL = 3;
     stats.forEach(([label, val, _cap], si) => {
       const col = si % COL;

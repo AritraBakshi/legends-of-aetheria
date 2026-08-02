@@ -1,4 +1,4 @@
-import type { ActiveCreature, Move, StatusEffect } from '../data/types';
+import type { ActiveCreature, Move, StatusEffect, WeatherType } from '../data/types';
 import { getMoveById } from '../data/moves';
 import { getTypeMultiplier } from '../data/typeChart';
 import { getCreatureById, getFullLearnset } from '../data/creatures';
@@ -97,14 +97,41 @@ export interface DamageResult {
   effectivenessMsg: string;
 }
 
+/** Ability IDs that boost their matching move type by 1.5x when the user is at 1/3 HP or less. */
+const LOW_HP_BOOST_ABILITY_TYPE: Record<string, string> = {
+  blaze: 'Fire',
+  torrent: 'Water',
+  overgrow: 'Nature',
+};
+
+export function getAbilityId(creature: ActiveCreature): string | undefined {
+  return getCreatureById(creature.dataId)?.abilityId;
+}
+
+/** Weather's multiplier on a move's raw power, before any other modifiers. */
+function getWeatherTypeMultiplier(moveType: string, weather: WeatherType): number {
+  if (weather === 'sun') {
+    if (moveType === 'Fire') return 1.5;
+    if (moveType === 'Water') return 0.5;
+  } else if (weather === 'rain') {
+    if (moveType === 'Water') return 1.5;
+    if (moveType === 'Fire') return 0.5;
+  } else if (weather === 'storm') {
+    if (moveType === 'Wind' || moveType === 'Electric') return 1.3;
+  }
+  return 1;
+}
+
 export function calcDamage(
   attacker: BattleCreature,
   defender: BattleCreature,
-  move: Move
+  move: Move,
+  weather: WeatherType = 'clear'
 ): DamageResult {
   if (move.category === 'Status') return { damage: 0, typeMultiplier: 1, isCrit: false, effectivenessMsg: '' };
 
   const defCreatureData = getCreatureById(defender.creature.dataId)!;
+  const defenderAbility = getAbilityId(defender.creature);
 
   // Fixed-damage moves (e.g. Sonic Boom) ignore stats/STAB/crit entirely,
   // but are still blocked by a type immunity (0x multiplier).
@@ -118,19 +145,35 @@ export function calcDamage(
 
   const level = attacker.creature.level;
   const atkCreatureData = getCreatureById(attacker.creature.dataId)!;
+  const attackerAbility = getAbilityId(attacker.creature);
 
   const isPhys = move.category === 'Physical';
   const atk = isPhys ? getEffectiveStat(attacker, 'atk') : getEffectiveStat(attacker, 'spatk');
   const def = isPhys ? getEffectiveStat(defender, 'def') : getEffectiveStat(defender, 'spdef');
 
-  const isCrit = Math.random() < 0.0625;
+  // Rock Solid: never lands a critical hit against this creature.
+  const isCrit = defenderAbility !== 'rock_solid' && Math.random() < 0.0625;
   const critMult = isCrit ? 1.5 : 1;
   const randMult = (Math.random() * 0.15 + 0.85);
   const stab = atkCreatureData.type.includes(move.type) ? 1.5 : 1;
   const typeMultiplier = getTypeMultiplier(move.type, defCreatureData.type);
+  const weatherMult = getWeatherTypeMultiplier(move.type, weather);
+
+  // Blaze/Torrent/Overgrow: 1.5x when the user is at 1/3 HP or less and the
+  // move matches the ability's element.
+  let abilityMult = 1;
+  if (attackerAbility && LOW_HP_BOOST_ABILITY_TYPE[attackerAbility] === move.type
+      && attacker.creature.currentHp <= attacker.creature.maxHp / 3) {
+    abilityMult *= 1.5;
+  }
+  // Solar Power: Special moves hit 1.5x harder in the sun.
+  if (attackerAbility === 'solar_power' && weather === 'sun' && move.category === 'Special') {
+    abilityMult *= 1.5;
+  }
 
   const damage = Math.max(1, Math.floor(
-    ((2 * level / 5 + 2) * move.power * atk / def / 50 + 2) * critMult * randMult * stab * typeMultiplier
+    ((2 * level / 5 + 2) * move.power * atk / def / 50 + 2)
+      * critMult * randMult * stab * typeMultiplier * weatherMult * abilityMult
   ));
 
   let effectivenessMsg = '';
@@ -147,6 +190,161 @@ export function calcCatchRate(creature: ActiveCreature, catchRate: number, ballM
   const statusBonus = creature.status !== null ? 1.5 : 1;
   const rate = hpFactor * catchRate * ballMult * statusBonus / 255;
   return Math.min(0.95, rate);
+}
+
+// ─── ACCURACY / EVASION ───────────────────────────────────────────────────────
+
+/**
+ * Whether a move hits, factoring in the attacker's accuracy stage, the
+ * defender's evasion stage, and evasion-boosting abilities (Snow Cloak in
+ * snow, Unbound Grace while healthy). Previously this was a flat
+ * `Math.random()*100 > move.accuracy` roll with acc/eva stages tracked but
+ * never actually consulted.
+ */
+export function checkMoveHits(attacker: BattleCreature, defender: BattleCreature, move: Move, weather: WeatherType = 'clear'): boolean {
+  const accMult = getStageMultiplier(attacker.stages.acc);
+  let evaMult = getStageMultiplier(defender.stages.eva);
+
+  const defAbility = getAbilityId(defender.creature);
+  if (defAbility === 'snow_cloak' && weather === 'snow') evaMult *= 1.25;
+  if (defAbility === 'unbound_grace' && defender.creature.currentHp > defender.creature.maxHp / 2) evaMult *= 1.15;
+
+  const effectiveAccuracy = move.accuracy * (accMult / evaMult);
+  return Math.random() * 100 < effectiveAccuracy;
+}
+
+// ─── CONTACT-TRIGGERED ABILITIES ──────────────────────────────────────────────
+
+export interface ContactAbilityResult {
+  /** Damage dealt back to the attacker as this creature's contact "punishment" (Thorn Coat). */
+  recoilToAttacker?: number;
+  /** Status inflicted on the attacker (Static/Static Mane). */
+  inflictOnAttacker?: StatusEffect;
+  message?: string;
+}
+
+/**
+ * Resolves a defender's contact-triggered ability after being hit by a
+ * physical move (Static/Static Mane may paralyze the attacker, Thorn Coat
+ * damages it). Call only when move.category === 'Physical' and the hit
+ * actually landed and dealt damage.
+ */
+export function checkContactAbility(defender: BattleCreature, attackerName: string): ContactAbilityResult {
+  const ability = getAbilityId(defender.creature);
+  if (ability === 'static' && !defender.creature.status && Math.random() < 0.3) {
+    return { inflictOnAttacker: 'paralysis', message: `${attackerName} was paralyzed by static!` };
+  }
+  if (ability === 'thorn_coat') {
+    const recoil = Math.max(1, Math.floor(defender.creature.maxHp / 8));
+    return { recoilToAttacker: recoil, message: `${attackerName} was hurt by thorns!` };
+  }
+  return {};
+}
+
+/**
+ * Motor Drive: if the defender has it and the incoming move is Electric,
+ * the hit is fully negated and the defender's Speed rises instead. Check
+ * this BEFORE damage is applied/rolled — it replaces the hit entirely.
+ */
+export function checkMotorDrive(defender: BattleCreature, move: Move): boolean {
+  if (getAbilityId(defender.creature) === 'motor_drive' && move.type === 'Electric') {
+    defender.stages.spd = Math.min(6, defender.stages.spd + 1);
+    return true;
+  }
+  return false;
+}
+
+/** Sturdy: surviving a would-be KO with 1 HP left, if the creature was at full HP. */
+export function applySturdy(defender: BattleCreature, incomingDamage: number): { damage: number; triggered: boolean } {
+  const ability = getAbilityId(defender.creature);
+  const wasFullHp = defender.creature.currentHp === defender.creature.maxHp;
+  if (ability === 'sturdy' && wasFullHp && incomingDamage >= defender.creature.currentHp) {
+    return { damage: defender.creature.currentHp - 1, triggered: true };
+  }
+  return { damage: incomingDamage, triggered: false };
+}
+
+/** Rock Head: no recoil damage from the user's own recoil moves. */
+export function blocksRecoil(attacker: BattleCreature): boolean {
+  return getAbilityId(attacker.creature) === 'rock_head';
+}
+
+// ─── GUARANTEED / BOOSTED SECONDARY EFFECTS ──────────────────────────────────
+
+/**
+ * Some abilities guarantee or boost a move's own secondary status chance:
+ * Inferno guarantees burn on the user's Fire moves, Frozen Fists roughly
+ * doubles the freeze chance on the user's Ice moves, Deep Torrent/Deep
+ * Roots guarantee a stat-drop side effect on the user's Water/Nature moves
+ * even when the move itself doesn't normally carry one.
+ */
+export function getBoostedEffectChance(attacker: BattleCreature, move: Move): number | null {
+  const ability = getAbilityId(attacker.creature);
+  if (ability === 'inferno' && move.type === 'Fire' && move.category !== 'Status') return 100;
+  if (ability === 'frozen_fists' && move.type === 'Ice' && move.category !== 'Status') {
+    return move.effect?.type === 'status' && move.effect.status === 'freeze'
+      ? Math.min(100, (move.effect.chance ?? 10) * 2)
+      : null;
+  }
+  return null;
+}
+
+/** Deep Torrent (Water) / Deep Roots (Nature): always apply a -1 stat drop on hit, even on moves with no listed effect. */
+export function getForcedStatDrop(attacker: BattleCreature, move: Move): { stat: 'spdef' | 'spd'; stages: number } | null {
+  const ability = getAbilityId(attacker.creature);
+  if (ability === 'deep_torrent' && move.type === 'Water' && move.category !== 'Status') return { stat: 'spdef', stages: -1 };
+  if (ability === 'deep_roots' && move.type === 'Nature' && move.category !== 'Status') return { stat: 'spd', stages: -1 };
+  return null;
+}
+
+// ─── WEATHER ──────────────────────────────────────────────────────────────────
+
+/** Speed multiplier from weather-reactive abilities (Swift Swim in rain, Tailwind Spirit in clear skies). */
+export function getWeatherSpeedMultiplier(creature: ActiveCreature, weather: WeatherType): number {
+  const ability = getAbilityId(creature);
+  if (ability === 'swift_swim' && weather === 'rain') return 2;
+  if (ability === 'tailwind_spirit' && weather === 'clear') return 1.5;
+  return 1;
+}
+
+/** End-of-turn weather effect (currently just Ice Body's heal in snow). Returns HP restored, 0 if none. */
+export function getWeatherTickHeal(creature: ActiveCreature, weather: WeatherType): number {
+  if (getAbilityId(creature) === 'ice_body' && weather === 'snow' && creature.currentHp < creature.maxHp) {
+    return Math.max(1, Math.floor(creature.maxHp / 16));
+  }
+  return 0;
+}
+
+/** Drought: sets sunny weather the moment this creature enters battle. */
+export function getEntryWeather(creature: ActiveCreature): WeatherType | null {
+  return getAbilityId(creature) === 'drought' ? 'sun' : null;
+}
+
+/** Intimidate: lowers the opponent's Attack by 1 stage the moment this creature enters battle. */
+export function hasIntimidate(creature: ActiveCreature): boolean {
+  return getAbilityId(creature) === 'intimidate';
+}
+
+/** Pressure: moves used against this creature cost an extra PP. */
+export function hasPressure(creature: ActiveCreature): boolean {
+  return getAbilityId(creature) === 'pressure';
+}
+
+/** Illuminate: while leading the party, wild encounters never trigger — an always-on Repel. */
+export function hasIlluminate(creature: ActiveCreature): boolean {
+  return getAbilityId(creature) === 'illuminate';
+}
+
+/** Storm Caller: this creature's Wind moves gain +1 priority while a storm is active. */
+export function getWeatherPriorityBonus(creature: ActiveCreature, move: Move, weather: WeatherType): number {
+  if (getAbilityId(creature) === 'storm_caller' && weather === 'storm' && move.type === 'Wind') return 1;
+  return 0;
+}
+
+/** Gale Wings: this creature's Wind moves always get +1 priority (no weather requirement). */
+export function getAbilityPriorityBonus(creature: ActiveCreature, move: Move): number {
+  if (getAbilityId(creature) === 'gale_wings' && move.type === 'Wind') return 1;
+  return 0;
 }
 
 export function tryCapture(creature: ActiveCreature, catchRate: number, ballMult: number): boolean {

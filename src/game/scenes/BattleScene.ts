@@ -7,10 +7,14 @@ import { getCreatureById } from '../data/creatures';
 import { getItemById } from '../data/items';
 import { TYPE_COLORS } from '../data/typeChart';
 import { MAPS } from '../data/maps';
+import type { WeatherType } from '../data/types';
 import {
   calcDamage, isFainted, calcExpGain, applyExpGain,
   checkEvolution, applyStatusDamage, tryCapture, createActiveCreature,
   learnNewMoves, sanitizeMoves, getEffectiveStat, inflictStatus, checkStatusBlocksAction,
+  getAbilityId, checkMoveHits, checkContactAbility, checkMotorDrive, applySturdy, blocksRecoil,
+  getBoostedEffectChance, getForcedStatDrop, getWeatherSpeedMultiplier, getWeatherTickHeal,
+  getEntryWeather, hasIntimidate, hasPressure, getWeatherPriorityBonus, getAbilityPriorityBonus,
   type BattleCreature,
 } from '../systems/BattleSystem';
 
@@ -36,6 +40,8 @@ export class BattleScene extends Phaser.Scene {
   private playerBC!: BattleCreature;
   private enemyBC!: BattleCreature;
   private phase: BattlePhase = 'playerTurn';
+  private weather: WeatherType = 'clear';
+  private weatherTurns = 0;
 
   // UI elements
   private msgBox!: Phaser.GameObjects.Text;
@@ -175,9 +181,45 @@ export class BattleScene extends Phaser.Scene {
 
     this.showMessage(introMsg, () => {
       this.showMessage(`Go, ${this.getPlayerCreatureName()}!`, () => {
-        this.showActionMenu();
+        this.resolveEntryAbilities();
       });
     });
+  }
+
+  /** Drought/Intimidate for one creature entering — returns any messages triggered. */
+  private applyEntryAbilitiesFor(bc: BattleCreature, name: string, opponent: BattleCreature, opponentName: string): string[] {
+    const messages: string[] = [];
+    const entryWeather = getEntryWeather(bc.creature);
+    if (entryWeather && this.weather !== entryWeather) {
+      this.weather = entryWeather;
+      this.weatherTurns = 5;
+      messages.push(`${name}'s ability summoned harsh sunlight!`);
+    }
+    if (hasIntimidate(bc.creature)) {
+      opponent.stages.atk = Math.max(-6, opponent.stages.atk - 1);
+      messages.push(`${name}'s Intimidate lowered ${opponentName}'s Attack!`);
+    }
+    return messages;
+  }
+
+  private showMessageChain(messages: string[], onDone: () => void) {
+    const showNext = () => {
+      const msg = messages.shift();
+      if (msg) this.showMessage(msg, showNext);
+      else onDone();
+    };
+    showNext();
+  }
+
+  /** Both creatures' Drought/Intimidate at the very start of the battle. */
+  private resolveEntryAbilities(onDone: () => void = () => this.showActionMenu()) {
+    const playerName = this.getPlayerCreatureName();
+    const enemyName = this.config.wildCreatureData.name;
+    const messages = [
+      ...this.applyEntryAbilitiesFor(this.playerBC, playerName, this.enemyBC, enemyName),
+      ...this.applyEntryAbilitiesFor(this.enemyBC, enemyName, this.playerBC, playerName),
+    ];
+    this.showMessageChain(messages, onDone);
   }
 
   // ── HUD ──────────────────────────────────────────────────────────────────────
@@ -649,7 +691,8 @@ export class BattleScene extends Phaser.Scene {
       this.showMessage('No PP left!', () => this.showActionMenu());
       return;
     }
-    moveSlot.pp--;
+    const ppCost = hasPressure(this.enemyBC.creature) ? 2 : 1;
+    moveSlot.pp = Math.max(0, moveSlot.pp - ppCost);
     const playerMove = getMoveById(moveSlot.moveId)!;
     this.beginMoveExchange(playerMove, false);
   }
@@ -685,28 +728,32 @@ export class BattleScene extends Phaser.Scene {
     const moves = this.enemyBC.creature.moves.filter(m => m.pp > 0);
     if (moves.length === 0) return null;
     const moveSlot = moves[Math.floor(Math.random() * moves.length)];
-    moveSlot.pp--;
+    const ppCost = hasPressure(this.playerBC.creature) ? 2 : 1;
+    moveSlot.pp = Math.max(0, moveSlot.pp - ppCost);
     return { moveSlot, move: getMoveById(moveSlot.moveId)! };
   }
 
   /** Priority tier of a move (Quick Attack, Ice Shard, etc. go before normal moves). */
-  private getMovePriority(move: Move): number {
-    return move.effect?.type === 'priority' ? (move.effect.priority ?? 0) : 0;
+  private getMovePriority(move: Move, bc: BattleCreature): number {
+    const base = move.effect?.type === 'priority' ? (move.effect.priority ?? 0) : 0;
+    return base + getAbilityPriorityBonus(bc.creature, move) + getWeatherPriorityBonus(bc.creature, move, this.weather);
   }
 
   /**
    * Decides who acts first: higher move priority wins outright; otherwise the
    * creature with the higher *current* (stage-adjusted) Speed goes first —
    * not raw base Speed, so Agility/Tailwind and speed-lowering moves actually
-   * matter here, same as they do for damage. Ties are a coin flip.
+   * matter here, same as they do for damage. Weather-reactive speed
+   * abilities (Swift Swim, Tailwind Spirit) are folded in too. Ties are a
+   * coin flip.
    */
   private playerGoesFirst(playerMove: Move, enemyMove: Move): boolean {
-    const playerPriority = this.getMovePriority(playerMove);
-    const enemyPriority = this.getMovePriority(enemyMove);
+    const playerPriority = this.getMovePriority(playerMove, this.playerBC);
+    const enemyPriority = this.getMovePriority(enemyMove, this.enemyBC);
     if (playerPriority !== enemyPriority) return playerPriority > enemyPriority;
 
-    const playerSpeed = getEffectiveStat(this.playerBC, 'spd');
-    const enemySpeed = getEffectiveStat(this.enemyBC, 'spd');
+    const playerSpeed = getEffectiveStat(this.playerBC, 'spd') * getWeatherSpeedMultiplier(this.playerBC.creature, this.weather);
+    const enemySpeed = getEffectiveStat(this.enemyBC, 'spd') * getWeatherSpeedMultiplier(this.enemyBC.creature, this.weather);
     if (playerSpeed !== enemySpeed) return playerSpeed > enemySpeed;
 
     return Math.random() < 0.5;
@@ -724,8 +771,35 @@ export class BattleScene extends Phaser.Scene {
     if (this.turnQueue.length > 0) {
       this.time.delayedCall(400, () => this.runNextQueuedAction());
     } else {
-      this.showActionMenu();
+      this.tickWeather(() => this.showActionMenu());
     }
+  }
+
+  /** Weather countdown + Ice Body end-of-turn heal, once per full turn (both sides having acted). */
+  private tickWeather(onDone: () => void) {
+    const messages: string[] = [];
+
+    for (const [bc, name, isEnemy] of [
+      [this.playerBC, this.getPlayerCreatureName(), false],
+      [this.enemyBC, this.config.wildCreatureData.name, true],
+    ] as const) {
+      const heal = getWeatherTickHeal(bc.creature, this.weather);
+      if (heal > 0 && !isFainted(bc.creature)) {
+        bc.creature.currentHp = Math.min(bc.creature.maxHp, bc.creature.currentHp + heal);
+        this.updateHPBar(bc.creature, !isEnemy);
+        messages.push(`${name} restored a little HP in the snow!`);
+      }
+    }
+
+    if (this.weather !== 'clear') {
+      this.weatherTurns--;
+      if (this.weatherTurns <= 0) {
+        this.weather = 'clear';
+        messages.push('The weather cleared up.');
+      }
+    }
+
+    this.showMessageChain(messages, onDone);
   }
 
   /**
@@ -803,14 +877,20 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    if (Math.random() * 100 > move.accuracy) {
+    if (!checkMoveHits(attacker, defender, move, this.weather)) {
       const dodgeSprite = isEnemy ? this.playerSprite : this.enemySprite;
       this.dodgeAnimation(dodgeSprite);
       this.showMessage(`${attackerName}'s ${move.name} missed!`, () => this.advanceQueue());
       return;
     }
 
-    const result = calcDamage(attacker, defender, move);
+    // Motor Drive: fully negates an Electric hit and boosts the defender's Speed instead.
+    if (checkMotorDrive(defender, move)) {
+      this.showMessage(`${defenderName}'s Motor Drive absorbed the hit! Speed rose!`, () => this.advanceQueue());
+      return;
+    }
+
+    const result = calcDamage(attacker, defender, move, this.weather);
     const targetSprite = isEnemy ? this.playerSprite : this.enemySprite;
     const attackerSprite = isEnemy ? this.enemySprite : this.playerSprite;
     const knockDir = isEnemy ? -18 : 18; // enemy knocks left, player knocks right
@@ -844,17 +924,26 @@ export class BattleScene extends Phaser.Scene {
     const shakeIntensity = result.isCrit ? 0.018 : Math.min(0.014, 0.004 + result.damage / 4000);
     this.cameras.main.shake(result.isCrit ? 220 : 140, shakeIntensity);
 
-    defender.creature.currentHp = Math.max(0, defender.creature.currentHp - result.damage);
+    const sturdy = applySturdy(defender, result.damage);
+    defender.creature.currentHp = Math.max(0, defender.creature.currentHp - sturdy.damage);
     this.updateHPBar(defender.creature, isEnemy); // isEnemy=true → player bar; isEnemy=false → enemy bar
 
-    let msg = result.effectivenessMsg ?? `Dealt ${result.damage} damage!`;
+    let msg = result.effectivenessMsg ?? `Dealt ${sturdy.damage} damage!`;
     if (result.isCrit) msg = `Critical hit! ${msg}`;
+    if (sturdy.triggered) msg += ` ${defenderName} hung on with Sturdy!`;
 
-    if (move.effect?.type === 'status' && move.effect.chance && Math.random() * 100 < (move.effect.chance ?? 0)) {
+    const boostedChance = getBoostedEffectChance(attacker, move);
+    const effectChance = boostedChance ?? move.effect?.chance ?? 0;
+    if (move.effect?.type === 'status' && effectChance && Math.random() * 100 < effectChance) {
       if (!defender.creature.status && move.effect.status) {
         inflictStatus(defender.creature, move.effect.status);
         msg += ` ${defenderName} is ${move.effect.status}!`;
       }
+    }
+    const forcedDrop = getForcedStatDrop(attacker, move);
+    if (forcedDrop) {
+      defender.stages[forcedDrop.stat] = Math.max(-6, defender.stages[forcedDrop.stat] + forcedDrop.stages);
+      msg += ` ${defenderName}'s ${forcedDrop.stat === 'spdef' ? 'Sp.Def' : 'Speed'} fell!`;
     }
 
     this.showMessage(msg, () => {
@@ -868,26 +957,56 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
 
-      const recoilAmt = move.effect?.type === 'recoil' ? (move.effect.recoilFlat ?? 0) : 0;
-      if (recoilAmt > 0) {
-        attacker.creature.currentHp = Math.max(0, attacker.creature.currentHp - recoilAmt);
-        this.updateHPBar(attacker.creature, !isEnemy);
-        this.showMessage(`${attackerName} is hit by the recoil! (-${recoilAmt} HP)`, () => {
-          if (isFainted(attacker.creature)) {
-            this.faintAnimation(attackerSprite);
-            this.showMessage(`${attackerName} fainted from the recoil!`, () => {
-              if (isEnemy) this.handleEnemyFaint();
-              else this.handlePlayerFaint();
-            });
-          } else {
-            this.advanceQueue();
-          }
-        });
-        return;
+      // Contact-triggered abilities (Static/Static Mane, Thorn Coat) — only for
+      // physical hits that actually connected and dealt real damage.
+      if (move.category === 'Physical') {
+        const contact = checkContactAbility(defender, attackerName);
+        if (contact.inflictOnAttacker && !attacker.creature.status) {
+          inflictStatus(attacker.creature, contact.inflictOnAttacker);
+          this.showMessage(contact.message!, () => this.continueAfterMove(attacker, attackerSprite, attackerName, move, isEnemy));
+          return;
+        }
+        if (contact.recoilToAttacker) {
+          attacker.creature.currentHp = Math.max(0, attacker.creature.currentHp - contact.recoilToAttacker);
+          this.updateHPBar(attacker.creature, !isEnemy);
+          this.showMessage(contact.message!, () => {
+            if (isFainted(attacker.creature)) {
+              this.faintAnimation(attackerSprite);
+              this.showMessage(`${attackerName} fainted!`, () => {
+                if (isEnemy) this.handleEnemyFaint(); else this.handlePlayerFaint();
+              });
+            } else {
+              this.continueAfterMove(attacker, attackerSprite, attackerName, move, isEnemy);
+            }
+          });
+          return;
+        }
       }
 
-      this.advanceQueue();
+      this.continueAfterMove(attacker, attackerSprite, attackerName, move, isEnemy);
     });
+  }
+
+  /** Recoil-move self-damage (skipped by Rock Head), then hands off to the queue. */
+  private continueAfterMove(attacker: BattleCreature, attackerSprite: Phaser.GameObjects.Image, attackerName: string, move: Move, isEnemy: boolean) {
+    const recoilAmt = (move.effect?.type === 'recoil' && !blocksRecoil(attacker)) ? (move.effect.recoilFlat ?? 0) : 0;
+    if (recoilAmt > 0) {
+      attacker.creature.currentHp = Math.max(0, attacker.creature.currentHp - recoilAmt);
+      this.updateHPBar(attacker.creature, !isEnemy);
+      this.showMessage(`${attackerName} is hit by the recoil! (-${recoilAmt} HP)`, () => {
+        if (isFainted(attacker.creature)) {
+          this.faintAnimation(attackerSprite);
+          this.showMessage(`${attackerName} fainted from the recoil!`, () => {
+            if (isEnemy) this.handleEnemyFaint();
+            else this.handlePlayerFaint();
+          });
+        } else {
+          this.advanceQueue();
+        }
+      });
+      return;
+    }
+    this.advanceQueue();
   }
 
   private applyStatusMove(attacker: BattleCreature, defender: BattleCreature, move: Move, isEnemy: boolean) {
@@ -923,6 +1042,14 @@ export class BattleScene extends Phaser.Scene {
       } else {
         msg = `${defenderName} is already affected!`;
       }
+    } else if (move.effect?.type === 'weather' && move.effect.weather) {
+      const weatherNames: Record<WeatherType, string> = {
+        clear: 'clear skies', sun: 'harsh sunlight', rain: 'a heavy rain',
+        snow: 'a blanket of snow', storm: 'a howling storm',
+      };
+      this.weather = move.effect.weather;
+      this.weatherTurns = 5;
+      msg = `${attackerName} summoned ${weatherNames[move.effect.weather]}!`;
     }
 
     this.showMessage(msg || `${attackerName} used ${move.name}!`, () => this.advanceQueue());
@@ -1182,7 +1309,8 @@ export class BattleScene extends Phaser.Scene {
 
     const trainerName = this.config.trainerName ?? 'Trainer';
     this.showMessage(`${trainerName} sent out ${next.data.name}!`, () => {
-      this.showActionMenu();
+      const messages = this.applyEntryAbilitiesFor(this.enemyBC, next.data.name, this.playerBC, this.getPlayerCreatureName());
+      this.showMessageChain(messages, () => this.showActionMenu());
     });
   }
 

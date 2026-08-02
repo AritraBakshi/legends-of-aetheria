@@ -3,7 +3,7 @@ import { gameState } from '../GameState';
 import { touchInput } from '../TouchInput';
 import { MAPS, TILE, TILE_SIZE, TILE_SOLID } from '../data/maps';
 import type { MapData, NPC } from '../data/types';
-import { createActiveCreature } from '../systems/BattleSystem';
+import { createActiveCreature, hasIlluminate } from '../systems/BattleSystem';
 import { getCreatureById, CREATURES } from '../data/creatures';
 import { getItemById } from '../data/items';
 import { getMoveById } from '../data/moves';
@@ -284,6 +284,7 @@ export class OverworldScene extends Phaser.Scene {
   private showDialogue(lines: string[], speaker: string, onComplete?: () => void) {
     if (this.dialogueActive) return;
     this.dialogueActive = true;
+    touchInput.clearDirections();
     this.scene.launch('Dialogue', {
       lines,
       speakerName: speaker,
@@ -399,7 +400,9 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    if (!this.mapData.isCity && onEncounterTile && gameState.party.length > 0 && gameState.repelSteps <= 0) {
+    const leadHasIlluminate = gameState.party.length > 0 && hasIlluminate(gameState.party[0]);
+
+    if (!this.mapData.isCity && onEncounterTile && gameState.party.length > 0 && gameState.repelSteps <= 0 && !leadHasIlluminate) {
       gameState.encounterSteps++;
       if (gameState.encounterSteps >= gameState.nextEncounterAt) {
         gameState.encounterSteps = 0;
@@ -491,6 +494,7 @@ export class OverworldScene extends Phaser.Scene {
       const required = npc.dungeonMasterRequires ?? 0;
       if (streak < required) {
         this.isInBattle = true;
+        touchInput.clearDirections();
         this.showDialogue(
           [`${npc.name}: You've beaten ${streak}/${required} of my trainers in a row.`, 'Come back once you\'ve defeated them all — without leaving!'],
           npc.name,
@@ -501,6 +505,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     this.isInBattle = true;
+    touchInput.clearDirections();
 
     const rematchCount = gameState.getCounter(`rematch_${npc.id}`);
 
@@ -614,6 +619,7 @@ export class OverworldScene extends Phaser.Scene {
     const encounters = this.mapData.encounters;
     if (encounters.length === 0) return;
     this.isInBattle = true;
+    touchInput.clearDirections();
 
     const total = encounters.reduce((s, e) => s + e.weight, 0);
     let rand = Math.random() * total;
@@ -665,6 +671,7 @@ export class OverworldScene extends Phaser.Scene {
     // Guide: open the help topic menu
     if (npc.isGuide) {
       this.dialogueActive = true;
+      touchInput.clearDirections();
       this.scene.launch('Guide', { onClose: () => { this.dialogueActive = false; } });
       return;
     }
@@ -698,6 +705,7 @@ export class OverworldScene extends Phaser.Scene {
     if (npc.isShop && npc.shopItems) {
       this.showDialogue([npc.dialogue[0] ?? 'Welcome!'], npc.name, () => {
         this.dialogueActive = true;
+        touchInput.clearDirections();
         this.scene.launch('Shop', { npc });
       });
       return;
@@ -709,6 +717,7 @@ export class OverworldScene extends Phaser.Scene {
         this.showDialogue(['Come back when you have a creature to battle with!'], npc.name);
       } else if (gameState.getFlag(`beaten_${npc.id}`)) {
         this.dialogueActive = true;
+        touchInput.clearDirections();
         this.scene.launch('ConfirmPrompt', {
           message: `Battle ${npc.name} again?`,
           onYes: () => { this.dialogueActive = false; this.startTrainerBattle(npc); },
@@ -741,6 +750,7 @@ export class OverworldScene extends Phaser.Scene {
         npc.name,
         () => {
           this.dialogueActive = true;
+          touchInput.clearDirections();
           this.scene.launch('MoveReminder');
         },
       );
@@ -783,6 +793,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private openMenu() {
     if (this.dialogueActive) return;
+    touchInput.clearDirections();
     this.scene.launch('Menu', {
       onClose: () => {
         this.scene.setActive(true, 'Overworld');

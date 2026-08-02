@@ -20,6 +20,21 @@ export class StarterScene extends Phaser.Scene {
   constructor() { super('Starter'); }
 
   create() {
+    // Phaser reuses this scene's underlying systems (input, time, tweens)
+    // across every scene.start('Starter') call — only create() itself
+    // reruns. Class fields like `confirmed` and plugin state like
+    // `input.enabled` are NOT reset automatically, so if this scene is
+    // ever entered more than once in a session, it would otherwise start
+    // back up already "confirmed" and with input still disabled from the
+    // previous run — permanently inert, no error, just dead. Reset
+    // everything explicitly every time this scene boots.
+    this.confirmed = false;
+    this.selectedIndex = 0;
+    this.input.enabled = true;
+    this.statBars = [];
+    this.creatureSprites = [];
+    this.selectionBoxes = [];
+
     const W = this.scale.width, H = this.scale.height;
 
     // Background
