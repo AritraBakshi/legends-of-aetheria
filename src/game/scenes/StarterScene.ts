@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { gameState } from '../GameState';
 import { getStarterCreatures, getCreatureById } from '../data/creatures';
 import { createActiveCreature } from '../systems/BattleSystem';
+import { fitImageToBox } from './spriteFit';
 import { TYPE_COLORS } from '../data/typeChart';
 
 export class StarterScene extends Phaser.Scene {
@@ -83,8 +84,7 @@ export class StarterScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       // Creature sprite
-      const sprite = this.add.image(bx + boxW / 2, by + 90, `creature_${starter.id}`)
-        .setDisplaySize(64, 64);
+      const sprite = fitImageToBox(this.add.image(bx + boxW / 2, by + 90, `creature_${starter.id}`), 64);
       this.creatureSprites.push(sprite);
 
       // Creature name

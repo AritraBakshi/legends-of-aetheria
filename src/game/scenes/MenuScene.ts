@@ -7,6 +7,7 @@ import { TYPE_COLORS } from '../data/typeChart';
 import { MAPS } from '../data/maps';
 import type { ActiveCreature } from '../data/types';
 import { learnNewMoves, checkEvolution, applyExpGain } from '../systems/BattleSystem';
+import { fitImageToBox } from './spriteFit';
 
 type MenuTab = 'main' | 'party' | 'bag' | 'dex' | 'save' | 'storage';
 
@@ -380,7 +381,7 @@ export class MenuScene extends Phaser.Scene {
           .strokeRoundedRect(10, y + 2, 468, 42, 5);
     container.add(slotBg);
 
-    container.add(this.add.image(36, y + 23, `creature_${creature.dataId}`).setDisplaySize(30, 30));
+    container.add(fitImageToBox(this.add.image(36, y + 23, `creature_${creature.dataId}`), 30));
     container.add(this.add.text(60, y + 6, creature.nickname ?? data.name, {
       fontSize: '13px', fontFamily: 'monospace', color: isFainted ? '#605060' : '#ffffff',
     }));
@@ -641,7 +642,7 @@ export class MenuScene extends Phaser.Scene {
         rowBg.fillStyle(0x0e1e3a).fillRoundedRect(10, rowY, 498, ROW_H - 4, 5);
         rowBg.lineStyle(1, 0x253550).strokeRoundedRect(10, rowY, 498, ROW_H - 4, 5);
         rowContainer.add(rowBg);
-        rowContainer.add(this.add.image(36, rowY + 20, `creature_${creature.dataId}`).setDisplaySize(28, 28));
+        rowContainer.add(fitImageToBox(this.add.image(36, rowY + 20, `creature_${creature.dataId}`), 28));
         rowContainer.add(this.add.text(58, rowY + 5, `${data.name} Lv.${creature.level}`, {
           fontSize: '13px', fontFamily: 'monospace', color: '#c0e0ff',
         }));
@@ -853,7 +854,7 @@ export class MenuScene extends Phaser.Scene {
       }));
 
       if (isSeen || isCaught) {
-        const sprite = this.add.image(65, ry + 19, `creature_${id}`).setDisplaySize(28, 28);
+        const sprite = fitImageToBox(this.add.image(65, ry + 19, `creature_${id}`), 28);
         const nameTxt = this.add.text(90, ry + 8, data.name, {
           fontSize: '14px', fontFamily: 'monospace', color: isCaught ? '#80ff80' : '#c0e0ff',
         });
@@ -926,7 +927,7 @@ private renderStorage() {
       rowContainer.add(rowBg);
 
       rowContainer.add(
-        this.add.image(46, ry + (ROW_H - 4) / 2, `creature_${creature.dataId}`).setDisplaySize(38, 38),
+        fitImageToBox(this.add.image(46, ry + (ROW_H - 4) / 2, `creature_${creature.dataId}`), 38),
       );
       rowContainer.add(this.add.text(76, ry + 7, `${creature.nickname ?? data.name}  Lv.${creature.level}`, {
         fontSize: '14px', fontFamily: 'monospace', color: '#ffffff',

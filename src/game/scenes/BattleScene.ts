@@ -8,6 +8,7 @@ import { getItemById } from '../data/items';
 import { TYPE_COLORS } from '../data/typeChart';
 import { MAPS } from '../data/maps';
 import type { WeatherType } from '../data/types';
+import { fitImageToBox } from './spriteFit';
 import {
   calcDamage, isFainted, calcExpGain, applyExpGain,
   checkEvolution, applyStatusDamage, tryCapture, createActiveCreature,
@@ -135,8 +136,7 @@ export class BattleScene extends Phaser.Scene {
     playerShadow.fillStyle(0x000000, 0.25).fillEllipse(playerStartX, playerY + 50, 90, 16);
 
     // Enemy sprite — slides in from right, displayed larger to fill the frame
-    this.enemySprite = this.add.image(W + 80, enemyY, `creature_${enemyData.id}`)
-      .setDisplaySize(this.battleSize(enemyData.id).enemy, this.battleSize(enemyData.id).enemy).setAlpha(0);
+    this.enemySprite = fitImageToBox(this.add.image(W + 80, enemyY, `creature_${enemyData.id}`), this.battleSize(enemyData.id).enemy).setAlpha(0);
     this.tweens.add({
       targets: this.enemySprite, x: enemyStartX, alpha: 1,
       duration: 420, ease: 'Back.easeOut',
@@ -144,8 +144,7 @@ export class BattleScene extends Phaser.Scene {
     });
 
     // Player sprite — slides in from left, back sprite shown larger
-    this.playerSprite = this.add.image(-80, playerY, `creature_${playerCreature.dataId}_back`)
-      .setDisplaySize(this.battleSize(playerCreature.dataId).player, this.battleSize(playerCreature.dataId).player).setFlipX(true).setAlpha(0);
+    this.playerSprite = fitImageToBox(this.add.image(-80, playerY, `creature_${playerCreature.dataId}_back`), this.battleSize(playerCreature.dataId).player).setFlipX(true).setAlpha(0);
     this.tweens.add({
       targets: this.playerSprite, x: playerStartX, alpha: 1,
       duration: 420, ease: 'Back.easeOut', delay: 180,
@@ -604,8 +603,7 @@ export class BattleScene extends Phaser.Scene {
     this.moveMenu.setVisible(false);
 
     // Update sprite & HUD
-    this.playerSprite.setTexture(`creature_${newCreature.dataId}_back`)
-      .setDisplaySize(this.battleSize(newCreature.dataId).player, this.battleSize(newCreature.dataId).player);
+    fitImageToBox(this.playerSprite.setTexture(`creature_${newCreature.dataId}_back`), this.battleSize(newCreature.dataId).player);
     // The previous creature's faint animation (if any) leaves this sprite
     // faded out and sunk 40px below its resting position — reset both,
     // otherwise the newly switched-in creature is invisible until some
@@ -1255,8 +1253,7 @@ export class BattleScene extends Phaser.Scene {
     creature.moves = merged.slice(-4); // keep the 4 most recently learned
     this.rebuildMoveButtons();
 
-    this.playerSprite.setTexture(`creature_${evolveId}_back`)
-      .setDisplaySize(this.battleSize(evolveId).player, this.battleSize(evolveId).player);
+    fitImageToBox(this.playerSprite.setTexture(`creature_${evolveId}_back`), this.battleSize(evolveId).player);
     this.showMessage(`${oldName} evolved into ${newData.name}!`, () => this.finishEnemyFaint());
   }
 
@@ -1289,8 +1286,7 @@ export class BattleScene extends Phaser.Scene {
     };
 
     // Update enemy sprite (animate it sliding in)
-    this.enemySprite.setAlpha(0).setTexture(`creature_${next.data.id}`)
-      .setDisplaySize(this.battleSize(next.data.id).enemy, this.battleSize(next.data.id).enemy);
+    fitImageToBox(this.enemySprite.setAlpha(0).setTexture(`creature_${next.data.id}`), this.battleSize(next.data.id).enemy);
     this.tweens.killTweensOf(this.enemySprite); // stop any leftover faint tween fighting this one
     this.enemySprite.y = this.enemyBaseY;
     this.tweens.add({
