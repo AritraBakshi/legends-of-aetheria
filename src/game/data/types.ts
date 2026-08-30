@@ -144,6 +144,25 @@ export interface NPC {
   isDungeonMaster?: boolean;
   /** Number of dungeon trainers (with the same dungeonId) that must be beaten this run before the master can be challenged. */
   dungeonMasterRequires?: number;
+  /**
+   * Renders as a treasure chest instead of a person, and grants this item
+   * once on first interaction (tracked via the same npc_done_${id} flag
+   * ordinary non-repeatable NPCs use) — reads as "already opened" on
+   * repeat visits rather than being farmable. Meant for maze/dungeon
+   * rewards tucked down a dead-end branch.
+   */
+  givesItem?: { id: number; quantity: number };
+  /**
+   * Gatekeeper NPC: blocks movement into its tile (an ordinary side effect
+   * of being an NPC at all, not special logic) until the referenced
+   * dungeon master's id has a `beaten_${id}` flag set — checked fresh every
+   * time the map loads (see OverworldScene.createNPCs). Once beaten, this
+   * NPC isn't added to the map at all, for anyone, including saves that
+   * beat that dungeon master before this field ever existed — no separate
+   * "already seen him vanish" bookkeeping needed. No badge item/sprite
+   * required; the flag itself IS the badge.
+   */
+  gatekeeperRequires?: string;
 }
 
 export interface MapExit {
@@ -173,4 +192,33 @@ export interface MapData {
   /** Overworld towns/cities never roll wild encounters, even on tiles that
    * would otherwise trigger them (tall grass, cave floor, open water). */
   isCity?: boolean;
+  /**
+   * Locks this map's day/night overlay to a heavy, fixed nighttime darkness
+   * instead of following the normal real-time day/night cycle
+   * (see OverworldScene.createDayNightOverlay / getOverlayAlpha). For
+   * permanently-dark settings (storm routes, a neon night city) rather than
+   * places that should still brighten up in daytime.
+   */
+  forceNight?: boolean;
+  /**
+   * Locks this map to a fixed warm dusk/sunset tint instead of the normal
+   * day/night cycle — distinct from forceNight's heavy dark storm/city
+   * overlay, this is meant for a permanently-golden-hour setting (the
+   * Nature City) that should read as "evening", not "pitch dark". Mutually
+   * exclusive with forceNight in practice, though nothing enforces that.
+   */
+  forceDusk?: boolean;
+  /**
+   * Ambient overworld weather shown for flavor on this map (rain streaks +
+   * periodic lightning flashes for 'storm'). Purely visual — distinct from
+   * the in-battle WeatherType mechanics in BattleSystem, though it reuses
+   * the same type since the concepts (and 'storm' in particular) line up.
+   */
+  ambientWeather?: WeatherType;
+  /**
+   * Drifting autumn leaves for the Nature City's evening ambience. Separate
+   * from ambientWeather (not a WeatherType/battle-relevant concept at all)
+   * since "leaves" has no in-battle weather equivalent.
+   */
+  ambientLeaves?: boolean;
 }

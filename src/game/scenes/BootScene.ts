@@ -257,6 +257,21 @@ export class BootScene extends Phaser.Scene {
       .fillStyle(0xa88858).fillRect(0,15,T,1).fillRect(0,23,T,1); // rail shading
     g.generateTexture('tile_fence', T, T);
 
+    // Fence (vertical) — same picket-fence material, rotated 90° for a
+    // fence running top-to-bottom instead of left-right: continuous rails
+    // run the tile's FULL HEIGHT so they connect seamlessly between tiles
+    // stacked north-south, while horizontal cross-posts mark each tile's
+    // edge (repeating like real fence posts spaced along the run). Sand
+    // base, not grass — this variant is for beach/dock lanes, not yards.
+    g.clear()
+      .fillStyle(0xe8d4a0).fillRect(0, 0, T, T) // sand base
+      .fillStyle(0xdcc68c).fillRect(3,5,2,2).fillRect(24,4,2,2).fillRect(8,22,2,2) // a few grains of sand showing through
+      .fillStyle(0xd8b888).fillRect(11,0,4,T).fillRect(20,0,4,T) // two continuous vertical rails, full tile height
+      .fillStyle(0xa88858).fillRect(14,0,1,T).fillRect(23,0,1,T) // rail shading
+      .fillStyle(0xc8a878).fillRect(0,1,T,4).fillRect(0,26,T,4) // horizontal cross-posts top/bottom
+      .fillStyle(0xa88858).fillRect(0,4,T,1).fillRect(0,29,T,1); // post shading
+    g.generateTexture('tile_fence_v', T, T);
+
     // Crystal — glinting ore vein jutting from rocky ground, Earthenhold's
     // signature decoration
     g.clear()
@@ -275,6 +290,169 @@ export class BootScene extends Phaser.Scene {
       .fillStyle(0x2a7a4a).fillRect(8,4,3,14).fillRect(18,10,3,16).fillRect(13,2,3,10) // kelp fronds
       .fillStyle(0x3a9a5e).fillRect(9,4,1,14).fillRect(19,10,1,16).fillRect(14,2,1,10); // frond highlight
     g.generateTexture('tile_seaweed', T, T);
+
+    // Hedge — dense trimmed maze-wall shrubbery, distinct from the tree
+    // canopy (deeper, more uniform green + a clipped rectangular silhouette
+    // reads as "wall" rather than "obstacle to walk around outdoors")
+    g.clear()
+      .fillStyle(0x1f5c28).fillRect(0, 0, T, T)
+      .fillStyle(0x184a20).fillRect(0,0,T,3).fillRect(0,T-3,T,3).fillRect(0,0,3,T).fillRect(T-3,0,3,T) // clipped edge shadow
+      .fillStyle(0x2c7536).fillRect(4,5,6,6).fillRect(16,4,7,7).fillRect(6,18,7,7).fillRect(19,17,7,8) // leaf clumps
+      .fillStyle(0x37903f).fillRect(6,7,3,3).fillRect(18,6,3,3).fillRect(8,20,3,3).fillRect(21,19,3,3); // highlights
+    g.generateTexture('tile_hedge', T, T);
+
+    // Puddle — rain-soaked ground for the storm routes; a wet-dirt patch
+    // with a reflective sheen, laid over the same brown as tile_path so it
+    // reads as "path, but flooded" rather than a totally new ground type
+    g.clear()
+      .fillStyle(0xc8a86b).fillRect(0, 0, T, T)
+      .fillStyle(0x3a4a5a).fillRect(5, 8, 22, 17) // dark puddle body
+      .fillStyle(0x4e6274).fillRect(7, 10, 18, 13) // puddle mid-tone
+      .fillStyle(0x7a94a8, 0.7).fillRect(9, 11, 6, 2).fillRect(19, 18, 5, 2) // sky-reflection streaks
+      .fillStyle(0xd8e8f5, 0.5).fillRect(11, 12, 3, 1).fillRect(21, 19, 2, 1); // bright highlight
+    g.generateTexture('tile_puddle', T, T);
+
+    // Neon floor — Voltspire City's futuristic street: DARK asphalt with
+    // bold glowing circuit lines. Deliberately much darker than the wall
+    // tile below (not just a different hue) — forceNight's heavy dark
+    // overlay (see OverworldScene) crushes subtle color/hue differences,
+    // so floor vs. wall needs a real BRIGHTNESS gap to still read clearly
+    // once dimmed, not just "same shade of gray, different trim color."
+    g.clear()
+      .fillStyle(0x14151a).fillRect(0, 0, T, T)
+      .fillStyle(0x0e0f13).fillRect(0,0,T,2).fillRect(0,T-2,T,2).fillRect(0,0,2,T).fillRect(T-2,0,2,T) // panel seam shadow
+      .fillStyle(0xffd23d).fillRect(2,15,13,3) // yellow circuit line, full-width bold
+      .fillStyle(0x3dd0ff).fillRect(17,15,13,3) // blue circuit line, full-width bold
+      .fillStyle(0xffe98a, 0.7).fillRect(2,15,13,1) // yellow glow
+      .fillStyle(0x9be8ff, 0.7).fillRect(17,15,13,1); // blue glow
+    g.generateTexture('tile_neonfloor', T, T);
+
+    // Neon wall — Voltspire City building facade: a distinctly LIGHTER
+    // metallic panel (not just a different trim color from the floor) so
+    // it still reads as "building" once forceNight dims everything, plus a
+    // couple of small lit windows — an unmistakably architectural detail a
+    // plain trim stripe alone doesn't read as, especially at night.
+    g.clear()
+      .fillStyle(0x565b6e).fillRect(0, 0, T, T)
+      .fillStyle(0x484c5c).fillRect(0,0,T,4).fillRect(0,T-6,T,6) // top/base shadow banding
+      .fillStyle(0x666b80).fillRect(3,6,11,18).fillRect(18,6,11,18) // panel highlights
+      .fillStyle(0xffe98a).fillRect(6,10,6,7).fillRect(20,10,6,7) // two lit windows
+      .fillStyle(0xfff6d0, 0.6).fillRect(6,10,6,2).fillRect(20,10,6,2) // window glow
+      .fillStyle(0x3dd0ff).fillRect(0,T-8,T,2) // glowing base trim
+      .fillStyle(0x9be8ff, 0.6).fillRect(0,T-8,T,1); // trim glow
+    g.generateTexture('tile_neonwall', T, T);
+
+    // Streetlamp — replaces the old windmill (which read as an unrecognizable
+    // pale blob once dimmed, not a windmill). Stands directly on the same
+    // dark asphalt as the floor tile (not its own mismatched background) so
+    // it looks like it belongs on the street, with a bright glowing head —
+    // paired with a separate soft glow sprite (fx_lampglow, added at
+    // runtime in OverworldScene) that actually bleeds light onto the
+    // tiles around it, since a light source that doesn't visibly light
+    // anything nearby doesn't read as a light source.
+    g.clear()
+      .fillStyle(0x14151a).fillRect(0, 0, T, T) // same dark asphalt as the floor tile
+      .fillStyle(0x0a0a0a, 0.4).fillEllipse(16, 27, 14, 5) // ground shadow under the lamp
+      .fillStyle(0x3a3d48).fillRect(14, 10, 4, 18) // post
+      .fillStyle(0x2c2e36).fillRect(14, 10, 2, 18) // post shading
+      .fillStyle(0xffe98a, 0.25).fillCircle(16, 8, 11) // soft baked-in halo, visible even before the runtime glow loads
+      .fillStyle(0xffe98a, 0.5).fillCircle(16, 8, 7)
+      .fillStyle(0xfff6d0).fillCircle(16, 8, 4); // bright lamp head
+    g.generateTexture('tile_streetlamp', T, T);
+
+    // Soft radial glow — a large, low-alpha halo added as a SEPARATE sprite
+    // centered on every streetlamp tile at runtime (not baked into the tile
+    // itself, since it needs to bleed across several neighboring tiles, and
+    // is drawn with additive blending above the dark night overlay so it
+    // actually cuts through it rather than being darkened along with
+    // everything else).
+    g.clear();
+    const glowR = 80;
+    for (let i = 10; i >= 1; i--) {
+      const r = (glowR / 10) * i;
+      const a = 0.05 * (1 - i / 11);
+      g.fillStyle(0xffe98a, a).fillCircle(glowR, glowR, r);
+    }
+    g.generateTexture('fx_lampglow', glowR * 2, glowR * 2);
+
+    // Treehouse wall — Nature City's living-architecture building facade.
+    // The first version was uniform vertical stripes (planks of identical
+    // width/color repeating exactly) — reads as "flat pattern", not an
+    // actual textured surface. Redesigned with irregular plank widths,
+    // moss/lichen patches, a small lit window (fits the evening theme),
+    // and a climbing vine for visual interest beyond bark streaks alone.
+    g.clear()
+      .fillStyle(0x6b4a2e).fillRect(0, 0, T, T)
+      // Irregular-width bark planks (varied gaps/widths, not a repeating unit)
+      .fillStyle(0x5a3d26).fillRect(3,0,2,T).fillRect(10,0,3,T).fillRect(21,0,2,T).fillRect(27,0,3,T)
+      .fillStyle(0x7d5838).fillRect(6,0,1,T).fillRect(16,0,2,T).fillRect(24,0,1,T)
+      // Knots
+      .fillStyle(0x4a3320).fillCircle(14, 9, 2).fillCircle(8, 24, 1.5)
+      // Moss/lichen patches climbing up from the base
+      .fillStyle(0x4a6b2e, 0.7).fillCircle(5, 29, 4).fillCircle(20, 30, 3).fillCircle(4, 22, 2)
+      .fillStyle(0x5c8038, 0.6).fillCircle(5, 29, 2).fillCircle(20, 30, 1.5)
+      // A small lit window — warm light glowing even on the wall itself,
+      // reinforcing the evening/lantern-lit mood
+      .fillStyle(0x3a2818).fillRect(22, 11, 8, 9)
+      .fillStyle(0xffb85a).fillRect(23, 12, 6, 7)
+      .fillStyle(0xffe0a0, 0.6).fillRect(23, 12, 6, 2);
+    g.generateTexture('tile_treehouse_wall', T, T);
+
+    // Treehouse roof — a leafy canopy instead of shingles/tin, rounded
+    // overlapping leaf-cluster shapes rather than a flat color, so it
+    // reads as foliage even at a 32px tile size. Autumn-toned (orange/red)
+    // to match the fall evening setting rather than a plain summer green.
+    g.clear()
+      .fillStyle(0x8a4018).fillRect(0, 0, T, T)
+      .fillStyle(0xb85c1e).fillCircle(8, 8, 8).fillCircle(22, 7, 7).fillCircle(15, 16, 9).fillCircle(26, 20, 7).fillCircle(6, 22, 7)
+      .fillStyle(0x6e3010).fillCircle(15, 16, 9).fillCircle(6, 22, 7) // darker underlay clusters for depth
+      .fillStyle(0xd97e2e, 0.7).fillCircle(10, 6, 3).fillCircle(24, 5, 2.5).fillCircle(13, 13, 3) // warm highlights
+      .fillStyle(0xe8b23d, 0.5).fillCircle(20, 18, 2.5).fillCircle(9, 20, 2); // a few golden-yellow leaf accents
+    g.generateTexture('tile_treehouse_roof', T, T);
+
+    // Maple tree — a distinct red-orange canopy tree for Nature City's
+    // border/decoration, alongside (not replacing) the plain green TREE,
+    // for the "different types of trees" variety a monotone forest lacks
+    g.clear()
+      .fillStyle(0x4a7c34).fillRect(0, 0, T, T) // grass-toned base, matching the ground it stands on
+      .fillStyle(0x5a3820).fillRect(13, 20, 6, 12) // trunk
+      .fillStyle(0x4a2c14).fillRect(13, 20, 2, 12) // trunk shading
+      .fillStyle(0xc23a1e).fillCircle(16, 12, 11).fillCircle(8, 16, 7).fillCircle(24, 16, 7) // canopy, red-orange
+      .fillStyle(0x9c2810).fillCircle(8, 16, 7).fillCircle(24, 16, 7) // side-cluster shading
+      .fillStyle(0xe8703a, 0.7).fillCircle(12, 7, 4).fillCircle(21, 8, 3); // sunlit highlights
+    g.generateTexture('tile_maple_tree', T, T);
+
+    // Autumn grass — orange-tinted ground with scattered fallen-leaf
+    // litter, an alternative to plain GRASS for Nature City's evening/fall
+    // setting rather than flat summer green everywhere
+    g.clear()
+      .fillStyle(0x7a8a3e).fillRect(0, 0, T, T)
+      .fillStyle(0x8a9a4a).fillRect(4,6,2,2).fillRect(20,10,2,2).fillRect(12,22,2,2).fillRect(26,24,2,2)
+      .fillStyle(0xc23a1e).fillRect(8,14,3,2).fillRect(22,6,3,2) // red leaf litter
+      .fillStyle(0xd97e2e).fillRect(16,18,3,2).fillRect(5,24,3,2) // orange leaf litter
+      .fillStyle(0xe8b23d).fillRect(24,16,3,2); // yellow leaf litter
+    g.generateTexture('tile_autumn_grass', T, T);
+
+    // Raindrop — small streak used by the storm ambient-weather particle
+    // emitter (OverworldScene). Kept tiny/cheap since dozens are on screen
+    // at once.
+    g.clear()
+      .fillStyle(0xbcd8f0, 0.8).fillRect(0, 0, 2, 12);
+    g.generateTexture('fx_raindrop', 2, 12);
+
+    // Autumn leaf — small maple-leaf silhouette used by the Nature City's
+    // ambient leaf-flurry particle emitter (OverworldScene). A simple
+    // 5-lobed shape via overlapping small rects, in a random-ish autumn
+    // color per instance would need per-particle tinting Phaser doesn't do
+    // cheaply here, so instead this bakes one warm orange-red leaf and lets
+    // the emitter vary scale/alpha/rotation per particle for visual variety.
+    g.clear();
+    g.fillStyle(0xd9691e)
+      .fillRect(3, 0, 2, 8) // center lobe
+      .fillRect(0, 2, 2, 4).fillRect(6, 2, 2, 4) // side lobes
+      .fillRect(1, 5, 2, 3).fillRect(5, 5, 2, 3); // lower lobes
+    g.fillStyle(0x8a3d10).fillRect(3, 6, 2, 3); // stem
+    g.generateTexture('fx_leaf', 8, 9);
 
     g.destroy();
   }
@@ -1615,6 +1793,20 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(0xe8c090).fillRoundedRect(4, 6, 24, 4, 2);   // board highlight
     g.fillStyle(0x6a3a18).fillRect(5, 12, 16, 2).fillRect(5, 16, 12, 2); // text lines
     g.generateTexture('npc_sign', W, H);
+
+    // ── Treasure chest — hidden item pickup (e.g. maze rewards); a static
+    // object like the sign, not a person, so it skips drawBody entirely ──
+    g.clear();
+    g.fillStyle(0x1a120a).fillRect(6, 30, 20, 3); // ground shadow
+    g.fillStyle(0x6a4020).fillRect(5, 18, 22, 14); // chest body
+    g.fillStyle(0x4a2c14).fillRect(5, 18, 22, 3).fillRect(5, 29, 22, 3); // body shading bands
+    g.fillStyle(0x8a5828).fillRoundedRect(4, 10, 24, 10, 3); // domed lid
+    g.fillStyle(0x6a4020).fillRoundedRect(4, 10, 24, 4, 3); // lid shading
+    g.fillStyle(0xd4a840).fillRect(2, 16, 28, 3).fillRect(2, 22, 28, 2); // gold trim bands
+    g.fillStyle(0xffd700).fillRect(14, 17, 4, 8); // lock plate
+    g.fillStyle(0x8a6800).fillCircle(16, 20, 1.5); // keyhole
+    g.fillStyle(0xfff2b0, 0.7).fillRect(8, 12, 5, 2); // lid highlight sheen
+    g.generateTexture('npc_chest', W, H);
 
     // ── Move Reminder NPC — sage in purple robe with scroll ──────────────────
     g.clear();

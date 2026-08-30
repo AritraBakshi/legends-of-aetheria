@@ -19,8 +19,34 @@ const TILE_TEXTURES: Record<number, string> = {
   [TILE.WALL_CORAL]: 'tile_wall_coral', [TILE.ROOF_CORAL]: 'tile_roof_coral', [TILE.SEAWEED]: 'tile_seaweed',
   [TILE.SAND]: 'tile_sand',
   [TILE.PALM]: 'tile_palm', [TILE.SHELL]: 'tile_shell', [TILE.DOCK]: 'tile_dock',
-  [TILE.FENCE]: 'tile_fence', [TILE.CRYSTAL]: 'tile_crystal',
+  [TILE.FENCE]: 'tile_fence', [TILE.CRYSTAL]: 'tile_crystal', [TILE.FENCE_V]: 'tile_fence_v',
+  [TILE.HEDGE]: 'tile_hedge', [TILE.PUDDLE]: 'tile_puddle',
+  [TILE.NEON_FLOOR]: 'tile_neonfloor', [TILE.NEON_WALL]: 'tile_neonwall',
+  [TILE.STREETLAMP]: 'tile_streetlamp',
+  [TILE.TREEHOUSE_WALL]: 'tile_treehouse_wall', [TILE.TREEHOUSE_ROOF]: 'tile_treehouse_roof',
+  [TILE.MAPLE_TREE]: 'tile_maple_tree', [TILE.AUTUMN_GRASS]: 'tile_autumn_grass',
 };
+
+/** Fixed overlay strength/tint for maps with forceNight — deliberately much
+ * darker and cooler than the normal day/night cycle's peak (0x000040 @
+ * ~0.18) since these are permanently-dark storm routes/city, not a place
+ * that should ever read as "daytime, slightly dim". */
+const FORCE_NIGHT_ALPHA = 0.68;
+const FORCE_NIGHT_TINT = 0x0a0a2e;
+
+/** Fixed overlay strength/tint for maps with forceDusk — a warm golden-hour
+ * tint. First pass was barely perceptible (0x8a4a2e @ 0.28); the follow-up
+ * overcorrected the other way and swamped everything in orange, masking
+ * detail like the falling autumn leaves. Settled on a lower alpha with a
+ * softer, less saturated tint — visibly warm without flattening everything
+ * else on screen into one color. */
+const FORCE_DUSK_ALPHA = 0.24;
+const FORCE_DUSK_TINT = 0xa85838;
+
+/** Storm ambience tuning (OverworldScene.setupAmbientWeather). */
+const RAIN_DROP_COUNT = 40;
+const LIGHTNING_MIN_DELAY_MS = 3500;
+const LIGHTNING_MAX_DELAY_MS = 9000;
 
 export class OverworldScene extends Phaser.Scene {
   private mapData!: MapData;
@@ -34,6 +60,9 @@ export class OverworldScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
   private dayNightOverlay!: Phaser.GameObjects.Rectangle;
+  private lightningFlash?: Phaser.GameObjects.Rectangle;
+  private rainEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
+  private leafEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
   private timeText!: Phaser.GameObjects.Text;
   private locationTimer = 0;
   public isInBattle = false;
@@ -61,6 +90,7 @@ export class OverworldScene extends Phaser.Scene {
     this.setupCamera();
     this.setupInput();
     this.createDayNightOverlay();
+    this.setupAmbientWeather();
     this.showLocationBanner();
     this.migrateRetroactiveSurf();
 
@@ -91,9 +121,22 @@ export class OverworldScene extends Phaser.Scene {
       for (let col = 0; col < width; col++) {
         const tileId = tiles[row][col];
         const texKey = TILE_TEXTURES[tileId] ?? 'tile_grass';
-        this.tileLayer.add(
-          this.add.image(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2, texKey),
-        );
+        const worldX = col * TILE_SIZE + TILE_SIZE / 2;
+        const worldY = row * TILE_SIZE + TILE_SIZE / 2;
+        this.tileLayer.add(this.add.image(worldX, worldY, texKey));
+
+        // Streetlamps get a large soft glow sprite on top, additively
+        // blended and placed ABOVE the dark night overlay (depth 50) so it
+        // actually cuts through the darkness instead of being dimmed along
+        // with everything else — a light source that doesn't visibly light
+        // anything nearby doesn't read as a light source. Added to the
+        // scene directly (not the tileLayer container) so its own depth
+        // is respected regardless of container draw order.
+        if (tileId === TILE.STREETLAMP) {
+          this.add.image(worldX, worldY - 8, 'fx_lampglow')
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDepth(51);
+        }
       }
     }
   }
@@ -108,6 +151,14 @@ export class OverworldScene extends Phaser.Scene {
   private createNPCs() {
     this.npcObjects = [];
     this.mapData.npcs.forEach(npc => {
+      // Gatekeepers vanish entirely (not rendered, don't block, can't be
+      // talked to) once the dungeon master they guard has been beaten —
+      // this is a live flag check evaluated fresh every time the map
+      // loads, so it works identically whether the flag was just set two
+      // minutes ago or was already true from a save made before this
+      // feature existed. No separate "already vanished" bookkeeping needed.
+      if (npc.gatekeeperRequires && gameState.getFlag(`beaten_${npc.gatekeeperRequires}`)) return;
+
       const nx = npc.x * TILE_SIZE + TILE_SIZE / 2;
       const ny = npc.y * TILE_SIZE + TILE_SIZE / 2;
 
@@ -164,6 +215,7 @@ export class OverworldScene extends Phaser.Scene {
     if (npc.isNurse)    return 'npc_nurse';
     if (npc.isShop)     return 'npc_shopkeeper';
     if (npc.isGuide)    return 'npc_guide';
+    if (npc.givesItem)  return 'npc_chest';
     if (npc.name === 'Sign' || npc.id.includes('sign')) return 'npc_sign';
     if (npc.id === 'move_reminder') return 'npc_move_reminder';
     if (npc.id === 'rowan')   return 'npc_rowan';
@@ -261,8 +313,71 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private createDayNightOverlay() {
-    this.dayNightOverlay = this.add.rectangle(0, 0, 9999, 9999, 0x000040, 0)
+    const tint = this.mapData.forceNight ? FORCE_NIGHT_TINT : this.mapData.forceDusk ? FORCE_DUSK_TINT : 0x000040;
+    const alpha = this.mapData.forceNight ? FORCE_NIGHT_ALPHA : this.mapData.forceDusk ? FORCE_DUSK_ALPHA : 0;
+    this.dayNightOverlay = this.add.rectangle(0, 0, 9999, 9999, tint, alpha)
       .setOrigin(0, 0).setDepth(50).setScrollFactor(0);
+  }
+
+  /** Rain streaks + periodic lightning flashes for maps with
+   * `ambientWeather: 'storm'`. Purely cosmetic overworld flavor — no
+   * relation to in-battle weather mechanics. All objects/timers are
+   * scene-owned (this.add./this.time.), so Phaser tears them down
+   * automatically on the scene.restart() that runs on every map change;
+   * nothing here needs manual cleanup. */
+  private setupAmbientWeather() {
+    if (this.mapData.ambientWeather === 'storm') {
+      this.rainEmitter = this.add.particles(0, 0, 'fx_raindrop', {
+        x: { min: 0, max: 1000 },
+        y: -20,
+        lifespan: 900,
+        speedX: -60,
+        speedY: 700,
+        quantity: 2,
+        frequency: 1000 / RAIN_DROP_COUNT,
+        scale: { min: 0.7, max: 1.2 },
+        alpha: { start: 0.7, end: 0.3 },
+      }).setDepth(51).setScrollFactor(0);
+
+      this.lightningFlash = this.add.rectangle(0, 0, 9999, 9999, 0xffffff, 0)
+        .setOrigin(0, 0).setDepth(52).setScrollFactor(0);
+      this.scheduleLightning();
+    }
+
+    // Drifting autumn leaves for the Nature City's evening ambience — slow,
+    // gentle, tumbling fall rather than rain's fast vertical streaks, with
+    // rotation for a "leaf tumbling on the breeze" feel.
+    if (this.mapData.ambientLeaves) {
+      this.leafEmitter = this.add.particles(0, 0, 'fx_leaf', {
+        x: { min: 0, max: 1000 },
+        y: -20,
+        lifespan: 4500,
+        speedX: { min: -30, max: 10 },
+        speedY: { min: 40, max: 80 },
+        quantity: 1,
+        frequency: 350,
+        scale: { min: 0.6, max: 1.1 },
+        rotate: { start: 0, end: 360 },
+        alpha: { start: 0.9, end: 0.5 },
+      }).setDepth(51).setScrollFactor(0);
+    }
+  }
+
+  private scheduleLightning() {
+    const delay = Phaser.Math.Between(LIGHTNING_MIN_DELAY_MS, LIGHTNING_MAX_DELAY_MS);
+    this.time.delayedCall(delay, () => {
+      if (!this.lightningFlash) return; // scene torn down mid-delay
+      this.tweens.chain({
+        targets: this.lightningFlash,
+        tweens: [
+          { alpha: 0.85, duration: 40 },
+          { alpha: 0.15, duration: 60 },
+          { alpha: 0.6, duration: 40 },
+          { alpha: 0, duration: 220 },
+        ],
+      });
+      this.scheduleLightning();
+    });
   }
 
   private showLocationBanner() {
@@ -311,7 +426,11 @@ export class OverworldScene extends Phaser.Scene {
       const h = Math.floor(gameState.timeOfDay * 24);
       const m = Math.floor((gameState.timeOfDay * 24 - h) * 60);
       this.timeText?.setText(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-      this.dayNightOverlay?.setAlpha(gameState.getTimeAlpha() * 0.6);
+      // forceNight/forceDusk maps ignore the real-time cycle entirely and
+      // stay at their fixed tint/alpha set in createDayNightOverlay —
+      // otherwise the cycle would brighten them back up during in-game
+      // "daytime" like any ordinary map.
+      if (!this.mapData.forceNight && !this.mapData.forceDusk) this.dayNightOverlay?.setAlpha(gameState.getTimeAlpha() * 0.6);
     }
 
     if (!this.isMoving) this.handleMovement();
@@ -753,6 +872,24 @@ export class OverworldScene extends Phaser.Scene {
           touchInput.clearDirections();
           this.scene.launch('MoveReminder');
         },
+      );
+      return;
+    }
+
+    // Hidden item pickup (treasure chest) — granted once, tracked with the
+    // same npc_done_${id} flag ordinary non-repeatable NPCs use, so it
+    // reads as "already opened" rather than being farmable.
+    if (npc.givesItem) {
+      if (gameState.getFlag(`npc_done_${npc.id}`)) {
+        this.showDialogue(['The chest is empty.'], npc.name);
+        return;
+      }
+      gameState.setFlag(`npc_done_${npc.id}`);
+      gameState.addItem(npc.givesItem.id, npc.givesItem.quantity);
+      const item = getItemById(npc.givesItem.id);
+      this.showDialogue(
+        [...npc.dialogue, `You found ${item?.name ?? 'an item'} x${npc.givesItem.quantity}!`],
+        'Treasure Chest',
       );
       return;
     }

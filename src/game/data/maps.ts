@@ -7,10 +7,30 @@ export const TILE = {
   BOULDER: 13, ROCK_PATH: 14, MUD: 15, CAVE_FLOOR: 16,
   WALL_CORAL: 17, ROOF_CORAL: 18, SEAWEED: 19,
   PALM: 20, SHELL: 21, DOCK: 22, CRYSTAL: 23,
+  // Electric-region set (storm routes + Voltspire City): HEDGE is the Route 2
+  // maze's wall tile, PUDDLE is storm-soaked ground flavor for both routes,
+  // NEON_FLOOR/NEON_WALL are the city's yellow-and-blue futuristic streets
+  // and buildings, STREETLAMP is a solid glowing light source.
+  HEDGE: 24, PUDDLE: 25, NEON_FLOOR: 26, NEON_WALL: 27, STREETLAMP: 28,
+  // Vertical-oriented fence — a distinct tile from FENCE because that one's
+  // art (vertical posts + horizontal rails) is drawn for a fence running
+  // LEFT-RIGHT. Stacked north-south instead, it doesn't read as a
+  // continuous line — each tile just repeats its own horizontal rail band,
+  // so a vertical run looks like stacked horizontal segments, not a fence
+  // running alongside the water. This tile is the 90°-rotated equivalent
+  // (continuous vertical rails, horizontal cross-posts) for that use case.
+  FENCE_V: 29,
+  // Nature City set — living treehouse architecture: TREEHOUSE_WALL is the
+  // wood-trunk building facade, TREEHOUSE_ROOF is the leafy canopy "roof".
+  TREEHOUSE_WALL: 30, TREEHOUSE_ROOF: 31,
+  // Autumn-evening decoration: MAPLE_TREE is a distinct red-orange canopy
+  // tree (vs. the plain green TREE border), AUTUMN_GRASS is orange-tinted
+  // ground with fallen-leaf litter, for visual variety beyond flat green.
+  MAPLE_TREE: 32, AUTUMN_GRASS: 33,
 };
 
 export const TILE_SIZE = 32;
-export const TILE_SOLID = new Set([TILE.TREE, TILE.WATER, TILE.WALL, TILE.FENCE, TILE.SIGN, TILE.ROOF, TILE.BOULDER, TILE.WALL_CORAL, TILE.ROOF_CORAL, TILE.SEAWEED, TILE.PALM]);
+export const TILE_SOLID = new Set([TILE.TREE, TILE.WATER, TILE.WALL, TILE.FENCE, TILE.SIGN, TILE.ROOF, TILE.BOULDER, TILE.WALL_CORAL, TILE.ROOF_CORAL, TILE.SEAWEED, TILE.PALM, TILE.HEDGE, TILE.NEON_WALL, TILE.STREETLAMP, TILE.FENCE_V, TILE.TREEHOUSE_WALL, TILE.TREEHOUSE_ROOF, TILE.MAPLE_TREE]);
 
 const T = TILE.TREE, G = TILE.GRASS, P = TILE.PATH, S = TILE.TALL_GRASS;
 const W = TILE.WATER, L = TILE.WALL, F = TILE.FLOOR, R = TILE.ROOF;
@@ -20,6 +40,10 @@ const LW = TILE.WALL_CORAL, RW = TILE.ROOF_CORAL, SW = TILE.SEAWEED;
 const SD = TILE.SAND;
 const PM = TILE.PALM, SH = TILE.SHELL, DK = TILE.DOCK;
 const FN = TILE.FENCE, CR = TILE.CRYSTAL;
+const HG = TILE.HEDGE, PD = TILE.PUDDLE, NF = TILE.NEON_FLOOR, NW = TILE.NEON_WALL, SL = TILE.STREETLAMP;
+const FV = TILE.FENCE_V;
+const THW = TILE.TREEHOUSE_WALL, THR = TILE.TREEHOUSE_ROOF;
+const MT = TILE.MAPLE_TREE, AG = TILE.AUTUMN_GRASS;
 
 // ─── OAKWIND VILLAGE (32 × 24) ────────────────────────────────────────────────
 // Houses: left=(x:2-4,y:2-5), right=(x:19-24,y:2-5) → Pokémon Center
@@ -376,6 +400,25 @@ function makeWaterCityTiles(): number[][] {
   const shellSpots: [number, number][] = [[7, 11], [16, 11], [9, 16], [17, 16], [22, 16], [5, 12]];
   for (const [x, y] of shellSpots) if (grid[y][x] === SD) grid[y][x] = SH;
 
+  // Land bridge across the south moat — the Storm Thicket (forest maze)
+  // exit. Walkable without Surf since it's a built dock, unlike the Storm
+  // Coast opening at x:6-7 a bit further west, which is deliberately left
+  // as open water (that route starts with surfing, this one doesn't).
+  grid[17][20] = DK; grid[18][20] = DK; grid[19][20] = DK;
+
+  // Fence channels flanking both new south exits, so each reads as an
+  // intentional, marked route rather than a random gap in the moat/sand.
+  // Uses FENCE_V (a vertical-oriented variant, see TILE.FENCE_V) since these
+  // run north-south alongside the water — the regular FENCE tile's art is
+  // drawn for a fence running left-right and doesn't read as continuous
+  // when stacked vertically. Rows 17-19 only (right where the water/dock
+  // actually is) so this doesn't run into the existing Pearl Diver NPC at
+  // (19,16) or the shell decorations dotted along row 16.
+  for (let y = 17; y <= 19; y++) {
+    grid[y][5] = FV; grid[y][8] = FV;   // flanks the Storm Coast surf lane (x:6-7)
+    grid[y][19] = FV; grid[y][21] = FV; // flanks the Storm Thicket dock (x:20)
+  }
+
   return grid;
 }
 const WATER_CITY_TILES: number[][] = makeWaterCityTiles();
@@ -439,6 +482,424 @@ function makeWaterDungeonTiles(): number[][] {
 }
 const WATER_DUNGEON_TILES: number[][] = makeWaterDungeonTiles();
 
+// ─── STORM COAST (32 × 24) — Water → Electric transition route ──────────────
+// The sea from Waveshore's south moat continues here, then recedes into
+// storm-soaked tidal flats, then solid (but still storm-lashed) land —
+// a single route that carries the player from surfing to walking without
+// a hard cut between the two. forceNight + ambientWeather: 'storm' on the
+// MapData (see OverworldScene) keep it dark with rain and lightning the
+// whole time, regardless of the real-time day/night cycle.
+// The south edge is a dead end for now — it'll open onto Voltspire City
+// once that's built; the "Storm rolls on..." sign flags this honestly
+// rather than silently teleporting the player somewhere wrong.
+function makeStormCoastTiles(): number[][] {
+  const w = 32, h = 24;
+  const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(G));
+
+  // Border
+  for (let x = 0; x < w; x++) { grid[0][x] = T; grid[h - 1][x] = T; }
+  for (let y = 0; y < h; y++) { grid[y][0] = T; grid[y][w - 1] = T; }
+
+  // North gap — arrival from Waveshore's new south dock (matches the
+  // waterCity exit added at x:6-7, y:19)
+  grid[0][6] = W; grid[0][7] = W;
+
+  // ── Open sea (rows 1-6): the moat continuing south, storm-tossed ──
+  for (let y = 1; y <= 6; y++) {
+    for (let x = 1; x < w - 1; x++) grid[y][x] = W;
+  }
+  const seaSeaweed: [number, number][] = [[4, 2], [11, 3], [19, 2], [25, 4], [8, 5], [22, 6]];
+  for (const [x, y] of seaSeaweed) grid[y][x] = SW;
+
+  // ── Tidal flats (rows 7-13): an uneven shoreline recedes south-eastward
+  // (a gentle sine wave on the boundary so it doesn't read as a ruler-straight
+  // line) — open water above the curve, storm-wet sand below it ──
+  for (let y = 7; y <= 13; y++) {
+    const t = (y - 7) / 6;
+    const boundary = Math.round(3 + t * 25 + Math.sin(y * 1.3) * 2);
+    for (let x = 1; x < w - 1; x++) grid[y][x] = x < boundary ? W : SD;
+  }
+  const flatPuddles: [number, number][] = [
+    [21, 8], [24, 9], [18, 10], [27, 10], [22, 11], [26, 12], [19, 12], [24, 13],
+  ];
+  for (const [x, y] of flatPuddles) if (grid[y][x] === SD) grid[y][x] = PD;
+  // Storm debris — boulders washed up onto the flats
+  const flatBoulders: [number, number][] = [[20, 9], [28, 11]];
+  for (const [x, y] of flatBoulders) if (grid[y][x] === SD) grid[y][x] = B;
+
+  // ── Storm-soaked land (rows 14-22): grass/tall-grass with a north-south
+  // path corridor, puddles pooling everywhere, and a thickening tree line
+  // toward the south (the forest Route 2 will pick up on the other path) ──
+  // Tall grass fills the WHOLE land zone as one contiguous field (not a
+  // checkerboard) — the encounter counter only advances on CONSECUTIVE
+  // encounter-tile steps and resets to 0 the moment you step off one, so a
+  // checkerboard pattern (which caps any straight-line run at 2-3 tiles,
+  // no matter its overall density) can never reach the 5-10 step threshold
+  // needed to even roll the encounter dice. A solid field, like Route 1/2
+  // use, is what actually makes encounters possible.
+  for (let y = 14; y <= 22; y++) {
+    for (let x = 1; x < w - 1; x++) grid[y][x] = S;
+  }
+  // Path corridor stops one row short of the border (h-2, not h-1) so it
+  // never overwrites the solid south wall — the earlier version ran the
+  // loop all the way to h, which punched a 2-tile gap straight through the
+  // border at (15,23)/(16,23), inviting the player toward what looked like
+  // an exit but was actually just the hard map edge.
+  for (let y = 13; y < h - 1; y++) { grid[y][15] = P; grid[y][16] = P; }
+  // Grass now encroaches on one of the two path columns almost every row
+  // (alternating sides) so walking the direct route reliably brushes
+  // encounter tiles, while the other column stays clear if you want to dodge.
+  for (let y = 14; y < h - 1; y++) {
+    const encroachX = (y % 2 === 0) ? 15 : 16;
+    grid[y][encroachX] = S;
+  }
+
+  const landPuddles: [number, number][] = [
+    [5, 15], [9, 17], [13, 20], [22, 16], [26, 18], [6, 21], [24, 21], [11, 15], [20, 19],
+  ];
+  for (const [x, y] of landPuddles) grid[y][x] = PD;
+
+  // Tree clusters thickening toward the south border, foreshadowing the
+  // forest that Route 2 (the other path to Voltspire) runs through
+  const treeClusters: [number, number][] = [
+    [3, 18], [4, 19], [3, 20], [28, 18], [29, 19], [28, 20],
+    [4, 21], [5, 22], [27, 21], [26, 22], [2, 15], [29, 16],
+  ];
+  for (const [x, y] of treeClusters) grid[y][x] = T;
+
+  // South border gap — Voltspire is now built, so this route actually goes
+  // somewhere; carved deliberately here (not by the old path-corridor loop
+  // overrunning the border, which was the original bug) at exactly the
+  // path corridor's columns.
+  grid[h - 1][15] = P; grid[h - 1][16] = P;
+
+  return grid;
+}
+const STORM_COAST_TILES: number[][] = makeStormCoastTiles();
+
+// ─── STORM THICKET (23 × 23) — the other Water → Electric route: a real,
+// generated forest maze (hedge walls, tall-grass floor for encounters) ──
+// Deterministic seeded PRNG so the generated maze is stable across rebuilds
+// instead of reshuffling every time this module re-evaluates.
+function mulberry32(seed: number) {
+  let s = seed | 0;
+  return function rand() {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface MazeResult {
+  grid: number[][];
+  /** Tile coords of the unique entrance→exit route through the maze. */
+  path: [number, number][];
+  /** Tile coords of every dead-end (degree-1) cell NOT on that route — safe
+   * spots for NPCs, since blocking a true leaf cell can never cut off
+   * anything else (there's nothing beyond it to reach). */
+  deadEnds: { tile: [number, number]; distanceFromEntrance: number; distanceFromExit: number }[];
+}
+
+/**
+ * Builds an `(2*cols+1) x (2*rows+1)` maze via randomized depth-first
+ * "recursive backtracker" carving — the standard algorithm for generating a
+ * *perfect* maze (a spanning tree over the cell grid: every cell reachable,
+ * exactly one simple path between any two cells, so "which way is correct"
+ * is always well-defined even though there are plenty of dead-end branches
+ * to get lost in).
+ */
+function generateMaze(cols: number, rows: number, entranceCol: number, exitCol: number, seed: number): MazeResult {
+  const rand = mulberry32(seed);
+  const key = (c: number, r: number) => `${c},${r}`;
+  const links: Record<string, Set<string>> = {};
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) links[key(c, r)] = new Set();
+
+  const visited: boolean[][] = Array.from({ length: rows }, () => Array(cols).fill(false));
+  const stack: [number, number][] = [[0, 0]];
+  visited[0][0] = true;
+  while (stack.length) {
+    const [c, r] = stack[stack.length - 1];
+    const candidates: [number, number][] = [];
+    if (r > 0 && !visited[r - 1][c]) candidates.push([c, r - 1]);
+    if (r < rows - 1 && !visited[r + 1][c]) candidates.push([c, r + 1]);
+    if (c > 0 && !visited[r][c - 1]) candidates.push([c - 1, r]);
+    if (c < cols - 1 && !visited[r][c + 1]) candidates.push([c + 1, r]);
+    if (candidates.length === 0) { stack.pop(); continue; }
+    const [nc, nr] = candidates[Math.floor(rand() * candidates.length)];
+    visited[nr][nc] = true;
+    links[key(c, r)].add(key(nc, nr));
+    links[key(nc, nr)].add(key(c, r));
+    stack.push([nc, nr]);
+  }
+
+  // Carve the tile grid: start solid hedge, punch a floor tile per cell plus
+  // a connecting floor tile in the wall between every linked cell pair.
+  const w = 2 * cols + 1, h = 2 * rows + 1;
+  const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(HG));
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) grid[2 * r + 1][2 * c + 1] = P;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    for (const n of links[key(c, r)]) {
+      const [nc, nr] = n.split(',').map(Number);
+      grid[r + nr + 1][c + nc + 1] = P;
+    }
+  }
+  grid[0][2 * entranceCol + 1] = P;
+  grid[h - 1][2 * exitCol + 1] = P;
+
+  // BFS from the entrance cell over the tree — gives both the unique route
+  // to the exit (walk `prev` back from the exit cell) and a distance value
+  // for every cell (used below to find the *farthest* dead end).
+  const startKey = key(entranceCol, 0);
+  const prev: Record<string, string | null> = { [startKey]: null };
+  const dist: Record<string, number> = { [startKey]: 0 };
+  const queue: string[] = [startKey];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    const [c, r] = cur.split(',').map(Number);
+    for (const n of links[key(c, r)]) {
+      if (n in prev) continue;
+      prev[n] = cur;
+      dist[n] = dist[cur] + 1;
+      queue.push(n);
+    }
+  }
+  const path: [number, number][] = [];
+  let cur: string | null = key(exitCol, rows - 1);
+  while (cur) {
+    const [c, r] = cur.split(',').map(Number);
+    path.unshift([2 * c + 1, 2 * r + 1]);
+    cur = prev[cur];
+  }
+  const pathKeys = new Set(path.map(([tx, ty]) => key((tx - 1) / 2, (ty - 1) / 2)));
+
+  // Second BFS, from the exit cell this time — used below to find dead ends
+  // close to the exit (for the south sign) the same way distanceFromEntrance
+  // finds ones close to the entrance.
+  const exitKey = key(exitCol, rows - 1);
+  const distFromExit: Record<string, number> = { [exitKey]: 0 };
+  const exitQueue: string[] = [exitKey];
+  while (exitQueue.length) {
+    const curK = exitQueue.shift()!;
+    const [c, r] = curK.split(',').map(Number);
+    for (const n of links[key(c, r)]) {
+      if (n in distFromExit) continue;
+      distFromExit[n] = distFromExit[curK] + 1;
+      exitQueue.push(n);
+    }
+  }
+
+  const deadEnds: MazeResult['deadEnds'] = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const k = key(c, r);
+    if (links[k].size === 1 && !pathKeys.has(k)) {
+      deadEnds.push({ tile: [2 * c + 1, 2 * r + 1], distanceFromEntrance: dist[k], distanceFromExit: distFromExit[k] });
+    }
+  }
+
+  return { grid, path, deadEnds };
+}
+
+// Entrance column 5, exit column 5 (both roughly centered — the maze itself,
+// not the entrance/exit placement, is what makes this route non-trivial).
+// Seed is an arbitrary fixed constant, not derived from anything time-based,
+// so the layout never changes between builds.
+const STORM_THICKET = generateMaze(11, 11, 5, 5, 20260827);
+
+// Re-tag floor cells as tall grass — ALL of them, not a checkerboard. The
+// encounter counter only advances on CONSECUTIVE encounter-tile steps and
+// resets on any non-grass tile, so a checkerboard (which caps any run at
+// 2-3 tiles regardless of overall density) structurally can't reach the
+// 5-10 step threshold needed to even roll the dice — maze corridors are
+// already short between turns, so every tile needs to count. A few puddles
+// are sprinkled in afterward purely for storm flavor.
+for (let y = 0; y < STORM_THICKET.grid.length; y++) {
+  for (let x = 0; x < STORM_THICKET.grid[y].length; x++) {
+    if (STORM_THICKET.grid[y][x] !== P) continue;
+    STORM_THICKET.grid[y][x] = S;
+  }
+}
+const thicketPuddleSpots: [number, number][] = [[3, 3], [9, 7], [15, 5], [19, 13], [7, 17], [13, 19]];
+for (const [x, y] of thicketPuddleSpots) if (STORM_THICKET.grid[y]?.[x] === S) STORM_THICKET.grid[y][x] = PD;
+
+const STORM_THICKET_TILES: number[][] = STORM_THICKET.grid;
+
+// ─── VOLTSPIRE (32 × 24) — the Electric-region city Storm Coast leads to.
+// Futuristic, night-lit, yellow-and-neon-blue, streetlamps glowing through
+// the dark — an open plaza (not a maze), so NPCs can never block the only
+// way through, unlike the routes leading here.
+function makeVoltspireTiles(): number[][] {
+  const w = 32, h = 24;
+  const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(NF));
+
+  // Border — city buildings framing the plaza
+  for (let x = 0; x < w; x++) { grid[0][x] = NW; grid[h - 1][x] = NW; }
+  for (let y = 0; y < h; y++) { grid[y][0] = NW; grid[y][w - 1] = NW; }
+
+  // Single north entrance from Storm Coast — Storm Thicket does NOT connect
+  // here; it leads to a separate Nature City instead, still to be built.
+  grid[0][8] = NF; grid[0][9] = NF;
+
+  // Volt Lodge — a building facade on the west side, door gap at its base
+  for (let y = 3; y <= 7; y++) for (let x = 4; x <= 10; x++) grid[y][x] = NW;
+  grid[7][7] = D; // lodge door
+
+  // Volt Dungeon gate — a building facade on the east side, door gap at its base
+  for (let y = 3; y <= 7; y++) for (let x = 21; x <= 27; x++) grid[y][x] = NW;
+  grid[7][24] = D; grid[7][25] = D; // dungeon double door
+
+  // Streetlamps lighting the plaza — solid glowing props (see fx_lampglow
+  // in OverworldScene for the actual light-bleed effect), placed clear of
+  // both the entrance lane and the two building facades
+  const lampSpots: [number, number][] = [[3, 11], [3, 18], [28, 11], [28, 18], [14, 20], [17, 20], [14, 21], [17, 21], [14, 22], [17, 22]];
+  for (const [x, y] of lampSpots) grid[y][x] = SL;
+
+  // A few puddles near the entrances — rain tracked in from the storm routes
+  const cityPuddles: [number, number][] = [[10, 15], [21, 16]];
+  for (const [x, y] of cityPuddles) grid[y][x] = PD;
+
+  return grid;
+}
+const VOLTSPIRE_TILES: number[][] = makeVoltspireTiles();
+
+// Volt Dungeon — open floor plan like Earthen/Water Dungeon (not a maze),
+// so trainers scattered around it can never block the only way through.
+function makeVoltDungeonTiles(): number[][] {
+  const w = 24, h = 22;
+  const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(F));
+  for (let x = 0; x < w; x++) { grid[0][x] = L; grid[h - 1][x] = L; }
+  for (let y = 0; y < h; y++) { grid[y][0] = L; grid[y][w - 1] = L; }
+  grid[h - 1][11] = D; grid[h - 1][12] = D; // south entrance, back to Voltspire
+
+  // Neon accent seams in the floor, echoing the city outside
+  const neonAccents: [number, number][] = [
+    [4, 5], [8, 4], [16, 5], [19, 4], [5, 9], [10, 10], [15, 9], [18, 10],
+    [4, 14], [9, 15], [14, 14], [19, 15], [6, 18], [12, 17], [17, 18],
+  ];
+  for (const [x, y] of neonAccents) grid[y][x] = NF;
+
+  // Boulder pillars lining the approach toward the Dungeon Master
+  for (let y = 3; y < h - 3; y += 3) { grid[y][3] = B; grid[y][w - 4] = B; }
+  grid[2][10] = B; grid[2][13] = B; grid[3][9] = B; grid[3][14] = B;
+
+  return grid;
+}
+const VOLT_DUNGEON_TILES: number[][] = makeVoltDungeonTiles();
+
+// ─── NATURE CITY (32 × 24) — the city Storm Thicket leads to. Living
+// treehouse architecture (wood-trunk walls, leafy canopy roofs) instead of
+// cut stone or neon panels, and forceDusk (see types.ts/OverworldScene) for
+// a warm golden-hour tint rather than pitch dark — evening, not midnight.
+function makeNatureCityTiles(): number[][] {
+  const w = 32, h = 24;
+  const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(G));
+
+  // Border — thick forest ringing the city, same TREE border every outdoor
+  // map uses, rather than architecture (the city is nestled IN the woods) —
+  // with maple trees mixed in for variety instead of a monotone tree line
+  for (let x = 0; x < w; x++) { grid[0][x] = T; grid[h - 1][x] = T; }
+  for (let y = 0; y < h; y++) { grid[y][0] = T; grid[y][w - 1] = T; }
+  const borderMaples: [number, number][] = [[4, 0], [11, 0], [20, 0], [27, 0], [0, 6], [0, 14], [w - 1, 6], [w - 1, 14]];
+  for (const [x, y] of borderMaples) if (grid[y]?.[x] === T) grid[y][x] = MT;
+
+  // North entrance from Storm Thicket, with a path corridor running south
+  // into the plaza
+  grid[0][15] = P; grid[0][16] = P;
+  for (let y = 1; y < h - 1; y++) { grid[y][15] = P; grid[y][16] = P; }
+
+  // Nature Lodge — a treehouse facade on the west side, door gap at its base
+  for (let x = 4; x <= 10; x++) grid[2][x] = THR;
+  for (let y = 3; y <= 7; y++) for (let x = 4; x <= 10; x++) grid[y][x] = THW;
+  grid[7][7] = D; // lodge door
+
+  // Nature Dungeon gate — a treehouse facade on the east side, door gap at its base
+  for (let x = 21; x <= 27; x++) grid[2][x] = THR;
+  for (let y = 3; y <= 7; y++) for (let x = 21; x <= 27; x++) grid[y][x] = THW;
+  grid[7][24] = D; grid[7][25] = D; // dungeon double door
+
+  // Autumn-grass patches — orange-tinted ground with fallen-leaf litter,
+  // breaking up the flat green so the plaza reads as "fall evening", not
+  // a generic lawn
+  const autumnPatches: [number, number, number, number][] = [
+    [17, 9, 4, 3], [22, 16, 5, 4], [3, 15, 4, 3], [17, 19, 6, 3],
+  ];
+  for (const [px, py, pw, ph] of autumnPatches) {
+    for (let y = py; y < py + ph; y++) for (let x = px; x < px + pw; x++) if (grid[y]?.[x] === G) grid[y][x] = AG;
+  }
+
+  // Tall grass and stray flowers dotting the plaza
+  const grassSpots: [number, number][] = [
+    [5, 12], [6, 12], [26, 12], [25, 12], [4, 20], [28, 20], [4, 5], [28, 5],
+  ];
+  for (const [x, y] of grassSpots) if (grid[y][x] === G) grid[y][x] = S;
+
+  // A proper fenced flowerbed — a small planted bed ringed by fence, not
+  // just loose flowers scattered on open grass
+  for (let x = 9; x <= 13; x++) { grid[15][x] = FN; grid[17][x] = FN; }
+  grid[16][9] = FV; grid[16][13] = FV;
+  for (let x = 10; x <= 12; x++) grid[16][x] = H;
+
+  // A few maple trees decorating the plaza itself, not just the border
+  const plazaMaples: [number, number][] = [[14, 12], [17, 14], [3, 10], [28, 15]];
+  for (const [x, y] of plazaMaples) if (grid[y]?.[x] === G || grid[y]?.[x] === S) grid[y][x] = MT;
+
+  return grid;
+}
+const NATURE_CITY_TILES: number[][] = makeNatureCityTiles();
+
+// Nature Dungeon — open floor plan like the other three dungeons (not a
+// maze), so trainers scattered around it can never block the only way
+// through. Continues the level curve above Volt Dungeon's 36-49.
+function makeNatureDungeonTiles(): number[][] {
+  const w = 24, h = 22;
+  const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(F));
+  for (let x = 0; x < w; x++) { grid[0][x] = L; grid[h - 1][x] = L; }
+  for (let y = 0; y < h; y++) { grid[y][0] = L; grid[y][w - 1] = L; }
+  grid[h - 1][11] = D; grid[h - 1][12] = D; // south entrance, back to Nature City
+
+  // Mossy/grassy accents in the floor
+  const grassAccents: [number, number][] = [
+    [4, 5], [8, 4], [16, 5], [19, 4], [5, 9], [10, 10], [15, 9], [18, 10],
+    [4, 14], [9, 15], [14, 14], [19, 15], [6, 18], [12, 17], [17, 18],
+  ];
+  for (const [x, y] of grassAccents) grid[y][x] = S;
+
+  // Boulder pillars lining the approach toward the Dungeon Master
+  for (let y = 3; y < h - 3; y += 3) { grid[y][3] = B; grid[y][w - 4] = B; }
+  grid[2][10] = B; grid[2][13] = B; grid[3][9] = B; grid[3][14] = B;
+
+  return grid;
+}
+const NATURE_DUNGEON_TILES: number[][] = makeNatureDungeonTiles();
+
+// NPC placement derived directly from the generated maze. Every NPC below
+// sits on a genuine dead-end (leaf) cell, never on the maze's sole
+// entrance→exit route — this engine has trainers (and any other NPC)
+// permanently occupy and block their tile, even after being defeated, so
+// putting one on a cut-vertex of a perfect maze (where literally every
+// through-cell is a cut vertex, since a perfect maze has zero redundant
+// paths) would hard-lock the maze forever once someone reached it. Leaf
+// cells have nothing beyond them, so blocking one can never strand anything
+// else — that's what makes them safe.
+const thicketDeadEndsByEntranceDist = [...STORM_THICKET.deadEnds].sort((a, b) => a.distanceFromEntrance - b.distanceFromEntrance);
+const thicketDeadEndsByExitDist = [...STORM_THICKET.deadEnds].sort((a, b) => a.distanceFromExit - b.distanceFromExit);
+const thicketDeadEndsByFarthest = [...STORM_THICKET.deadEnds].sort((a, b) => b.distanceFromEntrance - a.distanceFromEntrance);
+
+const thicketUsedTiles = new Set<string>();
+function claimDeadEnd(sorted: typeof STORM_THICKET.deadEnds): [number, number] {
+  const pick = sorted.find(d => !thicketUsedTiles.has(`${d.tile[0]},${d.tile[1]}`));
+  if (!pick) throw new Error('Storm Thicket maze ran out of distinct dead-end cells for NPC placement');
+  thicketUsedTiles.add(`${pick.tile[0]},${pick.tile[1]}`);
+  return pick.tile;
+}
+
+const thicketEntranceTile = STORM_THICKET.path[0]; // used only for the exit-gap x-coordinate, not for NPC placement
+const thicketChestTile = claimDeadEnd(thicketDeadEndsByFarthest);         // farthest dead end overall — the real detour reward
+const thicketTrainer1Tile = claimDeadEnd(thicketDeadEndsByFarthest);
+const thicketTrainer2Tile = claimDeadEnd(thicketDeadEndsByFarthest);
+const thicketSignNorthTile = claimDeadEnd(thicketDeadEndsByEntranceDist); // nearest dead end to the entrance
+const thicketSignSouthTile = claimDeadEnd(thicketDeadEndsByExitDist);     // nearest dead end to the exit
+
 // ─── EARTH LODGE INTERIOR (14 × 10) ──────────────────────────────────────────
 const EARTH_LODGE_TILES: number[][] = [
   [L,L,L,L,L,L,L,L,L,L,L,L,L,L],
@@ -455,6 +916,8 @@ const EARTH_LODGE_TILES: number[][] = [
 
 // Same generic interior shell reused for the Water Lodge.
 const WATER_LODGE_TILES: number[][] = EARTH_LODGE_TILES;
+const VOLT_LODGE_TILES: number[][] = EARTH_LODGE_TILES;
+const NATURE_LODGE_TILES: number[][] = EARTH_LODGE_TILES;
 
 // ─── PLAYER HOUSE INTERIOR (12 × 10) ─────────────────────────────────────────
 const HOUSE_TILES: number[][] = [
@@ -651,6 +1114,16 @@ export const MAPS: Record<string, MapData> = {
           'Defeat all 9 trainers in a single streak to face the Dungeon Master.',
           'Leaving the dungeon resets your progress!',
         ],
+      },
+      {
+        id: 'earthenhold_gatekeeper1', name: 'Earthen Sentinel', x: 13, y: 22, direction: 'down', repeatable: true,
+        gatekeeperRequires: 'earth_dungeon_master',
+        dialogue: ['You are not worthy of the path south yet.', 'Prove yourself against the Earthen Dungeon\'s master first.'],
+      },
+      {
+        id: 'earthenhold_gatekeeper2', name: 'Earthen Sentinel', x: 14, y: 22, direction: 'down', repeatable: true,
+        gatekeeperRequires: 'earth_dungeon_master',
+        dialogue: ['You are not worthy of the path south yet.', 'Prove yourself against the Earthen Dungeon\'s master first.'],
       },
     ],
     exits: [
@@ -875,6 +1348,34 @@ export const MAPS: Record<string, MapData> = {
           'Leaving the dungeon resets your progress!',
         ],
       },
+      {
+        id: 'waveshore_gatekeeper1', name: 'Tide Sentinel', x: 6, y: 16, direction: 'down', repeatable: true,
+        gatekeeperRequires: 'water_dungeon_master',
+        dialogue: ['You are not worthy of the storm yet.', 'Prove yourself against the Water Dungeon\'s master first.'],
+      },
+      {
+        // Staggered diagonally (7,17 instead of 7,16) from gatekeeper1 —
+        // side-by-side on the same row made their name labels overlap into
+        // unreadable text ("Tide Tide Sentinel"). This still fully seals
+        // the lane: the fence at row 17 leaves (6,17)/(7,17) as the only
+        // entry into the corridor at all, and gatekeeper1 already blocks
+        // the sole route into (6,17) from above, so blocking (7,17)
+        // directly closes the other entry without needing to also stand at
+        // (7,16).
+        id: 'waveshore_gatekeeper2', name: 'Tide Sentinel', x: 7, y: 17, direction: 'down', repeatable: true,
+        gatekeeperRequires: 'water_dungeon_master',
+        dialogue: ['You are not worthy of the storm yet.', 'Prove yourself against the Water Dungeon\'s master first.'],
+      },
+      {
+        // Moved one tile south of its original (20,16) — that was directly
+        // adjacent to the existing Pearl Diver NPC at (19,16), and their
+        // name labels overlapped into unreadable text ("Pear Volt
+        // Sentinel"). (20,17) is still the sole 1-wide dock chokepoint, so
+        // the seal is unaffected.
+        id: 'waveshore_gatekeeper3', name: 'Volt Sentinel', x: 20, y: 17, direction: 'down', repeatable: true,
+        gatekeeperRequires: 'volt_dungeon_master',
+        dialogue: ['This path leads toward Wildhaven — you\'re not ready for it yet.', 'Prove yourself against Voltspire\'s Dungeon Master first.'],
+      },
     ],
     exits: [
       { x: 13, y: 0,  width: 1, height: 1, targetMap: 'waterCave', targetX: 13, targetY: 20 },
@@ -882,6 +1383,15 @@ export const MAPS: Record<string, MapData> = {
       { x: 6,  y: 6,  width: 1, height: 1, targetMap: 'waterLodge', targetX: 6, targetY: 8 },
       { x: 19, y: 9,  width: 1, height: 1, targetMap: 'waterDungeon', targetX: 11, targetY: 20 },
       { x: 20, y: 9,  width: 1, height: 1, targetMap: 'waterDungeon', targetX: 12, targetY: 20 },
+      // South dock onward to the Electric region — requires Surf, same as
+      // any other open-water tile here, which fits: this route out of
+      // Waveshore starts as more open sea before it reaches land.
+      { x: 6,  y: 19, width: 1, height: 1, targetMap: 'stormCoast', targetX: 6, targetY: 1 },
+      { x: 7,  y: 19, width: 1, height: 1, targetMap: 'stormCoast', targetX: 7, targetY: 1 },
+      // Second path to the Electric region — the forest maze, reached on
+      // dry land rather than by surfing (a single-tile trail opening, not
+      // a wide dock, to match "forest path" rather than "boat launch").
+      { x: 20, y: 19, width: 1, height: 1, targetMap: 'stormThicket', targetX: 11, targetY: 1 },
     ],
     encounters: [],
     music: 'town',
@@ -972,6 +1482,96 @@ export const MAPS: Record<string, MapData> = {
     encounters: [], isIndoor: true, isCave: true, music: 'indoor',
   },
 
+  stormCoast: {
+    id: 'stormCoast', name: 'Storm Coast', width: 32, height: 24,
+    tiles: STORM_COAST_TILES,
+    forceNight: true,
+    ambientWeather: 'storm',
+    npcs: [
+      {
+        id: 'stormcoast_sign_north', name: 'Sign', x: 8, y: 8, direction: 'down', repeatable: true,
+        dialogue: ['STORM COAST', 'The sea keeps rolling south — you\'ll need Surf a while longer yet.', 'Lightning\'s been striking the flats all night. Stay sharp.'],
+      },
+      {
+        id: 'stormcoast_trainer1', name: 'Surfer Kai', x: 17, y: 16, direction: 'left',
+        dialogue: ['Storm\'s not gonna stop me from riding these swells!', 'Let\'s see what you\'ve got!'],
+        isTrainer: true,
+        trainerCreatures: [{ creatureId: 5, level: 33 }, { creatureId: 24, level: 32 }],
+      },
+      {
+        id: 'stormcoast_trainer2', name: 'Stormwatcher Reyna', x: 14, y: 20, direction: 'right',
+        dialogue: ['Every strike of lightning charges my partner right up.', 'Feel the voltage!'],
+        isTrainer: true,
+        trainerCreatures: [{ creatureId: 19, level: 35 }, { creatureId: 25, level: 34 }],
+      },
+      {
+        id: 'stormcoast_sign_south', name: 'Sign', x: 16, y: 22, direction: 'down', repeatable: true,
+        dialogue: ['Voltspire\'s lights, just ahead through the rain.'],
+      },
+    ],
+    exits: [
+      { x: 6, y: 0, width: 1, height: 1, targetMap: 'waterCity', targetX: 6, targetY: 18 },
+      { x: 7, y: 0, width: 1, height: 1, targetMap: 'waterCity', targetX: 7, targetY: 18 },
+      { x: 15, y: 23, width: 1, height: 1, targetMap: 'voltspire', targetX: 8, targetY: 1 },
+      { x: 16, y: 23, width: 1, height: 1, targetMap: 'voltspire', targetX: 9, targetY: 1 },
+    ],
+    encounters: [
+      { creatureId: 5,  minLevel: 30, maxLevel: 35, weight: 25 },
+      { creatureId: 24, minLevel: 31, maxLevel: 36, weight: 25 },
+      { creatureId: 19, minLevel: 32, maxLevel: 37, weight: 20 },
+      { creatureId: 25, minLevel: 33, maxLevel: 38, weight: 10 },
+      { creatureId: 37, minLevel: 32, maxLevel: 37, weight: 3  },
+    ],
+    music: 'route',
+  },
+
+  stormThicket: {
+    id: 'stormThicket', name: 'Storm Thicket', width: STORM_THICKET_TILES[0].length, height: STORM_THICKET_TILES.length,
+    tiles: STORM_THICKET_TILES,
+    forceNight: true,
+    ambientWeather: 'storm',
+    npcs: [
+      {
+        id: 'stormthicket_sign_north', name: 'Sign', x: thicketSignNorthTile[0], y: thicketSignNorthTile[1], direction: 'down', repeatable: true,
+        dialogue: ['STORM THICKET', 'Hedges as far as the lightning shows. Watch your footing — and don\'t be afraid to backtrack.', 'Some branches lead nowhere... and some lead somewhere worth finding.'],
+      },
+      {
+        id: 'stormthicket_trainer1', name: 'Forester Bram', x: thicketTrainer1Tile[0], y: thicketTrainer1Tile[1], direction: 'down',
+        dialogue: ['Lost already? Happens to everyone their first time through.', 'But you\'re not getting past me that easily!'],
+        isTrainer: true,
+        trainerCreatures: [{ creatureId: 20, level: 33 }, { creatureId: 14, level: 32 }],
+      },
+      {
+        id: 'stormthicket_trainer2', name: 'Ranger Sable', x: thicketTrainer2Tile[0], y: thicketTrainer2Tile[1], direction: 'up',
+        dialogue: ['The static in the air out here does something to my creatures.', 'You\'ll feel it too, soon enough.'],
+        isTrainer: true,
+        trainerCreatures: [{ creatureId: 21, level: 36 }, { creatureId: 18, level: 34 }],
+      },
+      {
+        id: 'stormthicket_chest', name: 'Treasure Chest', x: thicketChestTile[0], y: thicketChestTile[1], direction: 'down',
+        dialogue: ['You pry open an old chest, half-buried under wet hedge leaves...'],
+        givesItem: { id: 31, quantity: 1 },
+      },
+      {
+        id: 'stormthicket_sign_south', name: 'Sign', x: thicketSignSouthTile[0], y: thicketSignSouthTile[1], direction: 'down', repeatable: true,
+        dialogue: ['Warm lantern-light glows just past the last hedges...'],
+      },
+    ],
+    exits: [
+      { x: thicketEntranceTile[0], y: 0, width: 1, height: 1, targetMap: 'waterCity', targetX: 20, targetY: 18 },
+      { x: thicketEntranceTile[0], y: STORM_THICKET_TILES.length - 1, width: 1, height: 1, targetMap: 'natureCity', targetX: 15, targetY: 1 },
+    ],
+    encounters: [
+      { creatureId: 20, minLevel: 30, maxLevel: 35, weight: 30 },
+      { creatureId: 14, minLevel: 31, maxLevel: 36, weight: 25 },
+      { creatureId: 21, minLevel: 33, maxLevel: 38, weight: 15 },
+      { creatureId: 18, minLevel: 30, maxLevel: 34, weight: 15 },
+      { creatureId: 37, minLevel: 32, maxLevel: 36, weight: 3  },
+      { creatureId: 31, minLevel: 30, maxLevel: 33, weight: 1  },
+    ],
+    music: 'route',
+  },
+
   playerHouse: {
     id: 'playerHouse', name: 'Your House', width: 12, height: 10,
     tiles: HOUSE_TILES,
@@ -1054,5 +1654,274 @@ export const MAPS: Record<string, MapData> = {
     ],
     exits: [{ x: 7, y: 11, width: 1, height: 1, targetMap: 'oakwind', targetX: 4, targetY: 17 }],
     encounters: [], isIndoor: true, music: 'indoor',
+  },
+
+  voltspire: {
+    id: 'voltspire', name: 'Voltspire', width: 32, height: 24,
+    tiles: VOLTSPIRE_TILES,
+    forceNight: true,
+    npcs: [
+      {
+        id: 'volt_villager1', name: 'Lineworker', x: 12, y: 10, direction: 'down', repeatable: true,
+        dialogue: [
+          'Welcome to Voltspire, city of light!',
+          'The streetlamps you see everywhere keep the whole city lit, storm or not.',
+        ],
+      },
+      {
+        id: 'volt_villager2', name: 'Signal Tech', x: 20, y: 14, direction: 'up', repeatable: true,
+        dialogue: [
+          'Made it through the storm coast, huh? Rough way to arrive.',
+          'That gate to the east is the Volt Dungeon. Seven trainers guard it, streak-style.',
+        ],
+      },
+      {
+        id: 'volt_lodge_sign', name: 'Sign', x: 4, y: 8, direction: 'down', repeatable: true,
+        dialogue: [
+          '🏥 VOLT LODGE',
+          'Nurse Joy heals your party for FREE.',
+          'The Shopkeeper sells supplies, and the Move Reminder can restore forgotten moves.',
+        ],
+      },
+      {
+        id: 'volt_dungeon_sign', name: 'Sign', x: 28, y: 8, direction: 'down', repeatable: true,
+        dialogue: [
+          '⚡ VOLT DUNGEON',
+          'Defeat all 7 trainers in a single streak to face the Dungeon Master.',
+          'Leaving the dungeon resets your progress!',
+        ],
+      },
+      {
+        id: 'voltspire_sign_south', name: 'Sign', x: 16, y: 21, direction: 'down', repeatable: true,
+        dialogue: ['The road onward is still being charted.', '(Come back soon!)'],
+      },
+    ],
+    exits: [
+      { x: 8,  y: 0, width: 1, height: 1, targetMap: 'stormCoast', targetX: 15, targetY: 22 },
+      { x: 9,  y: 0, width: 1, height: 1, targetMap: 'stormCoast', targetX: 16, targetY: 22 },
+      { x: 7,  y: 7, width: 1, height: 1, targetMap: 'voltLodge', targetX: 6, targetY: 8 },
+      { x: 24, y: 7, width: 1, height: 1, targetMap: 'voltDungeon', targetX: 11, targetY: 20 },
+      { x: 25, y: 7, width: 1, height: 1, targetMap: 'voltDungeon', targetX: 12, targetY: 20 },
+    ],
+    encounters: [], isCity: true, music: 'town',
+  },
+
+  voltLodge: {
+    id: 'voltLodge', name: 'Volt Lodge', width: 14, height: 10,
+    tiles: VOLT_LODGE_TILES,
+    npcs: [
+      {
+        id: 'volt_nurse', name: 'Nurse Joy', x: 4, y: 3, direction: 'down',
+        isNurse: true,
+        dialogue: [
+          'Welcome to the Volt Lodge!',
+          'I\'ll heal your creatures back to full health!',
+          'Good luck out there — the storms don\'t let up easily.',
+        ],
+      },
+      {
+        id: 'volt_shopkeeper', name: 'Shopkeeper', x: 9, y: 3, direction: 'down',
+        isShop: true,
+        shopItems: [
+          { id: 1,  price: 200  },
+          { id: 2,  price: 600  },
+          { id: 3,  price: 1500 },
+          { id: 10, price: 100  },
+          { id: 11, price: 300  },
+          { id: 12, price: 800  },
+          { id: 30, price: 1000  },
+          { id: 31, price: 6000 },
+          { id: 50, price: 350  },
+          { id: 51, price: 700  },
+        ],
+        dialogue: ['Welcome! Storm-worn trainers get first pick of the good stock.'],
+      },
+      {
+        id: 'move_reminder', name: 'Move Reminder', x: 9, y: 6, direction: 'down',
+        dialogue: ['I can help your creatures remember forgotten moves.'],
+      },
+    ],
+    exits: [{ x: 6, y: 9, width: 1, height: 1, targetMap: 'voltspire', targetX: 7, targetY: 8 }],
+    encounters: [], isIndoor: true, music: 'indoor',
+  },
+
+  voltDungeon: {
+    id: 'voltDungeon', name: 'Volt Dungeon', width: 24, height: 22,
+    tiles: VOLT_DUNGEON_TILES,
+    npcs: [
+      { id: 'volt_trainer1', name: 'Circuit Runner Zeke', x: 5, y: 18, direction: 'up', dungeonId: 'volt',
+        dialogue: ['Speed is everything out here!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 18, level: 36 }, { creatureId: 37, level: 37 }] },
+      { id: 'volt_trainer2', name: 'Windvane Priya', x: 18, y: 18, direction: 'up', dungeonId: 'volt',
+        dialogue: ['The gales favor the swift!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 19, level: 37 }, { creatureId: 38, level: 38 }] },
+      { id: 'volt_trainer3', name: 'Frostwatch Elin', x: 5, y: 15, direction: 'up', dungeonId: 'volt',
+        dialogue: ['Even lightning has a bite to it.'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 37, level: 38 }, { creatureId: 18, level: 39 }] },
+      { id: 'volt_trainer4', name: 'Quarryhand Dez', x: 18, y: 15, direction: 'up', dungeonId: 'volt',
+        dialogue: ['A live wire beats solid ground any day!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 38, level: 39 }, { creatureId: 19, level: 40 }] },
+      { id: 'volt_trainer5', name: 'Cindermason Rho', x: 5, y: 11, direction: 'up', dungeonId: 'volt',
+        dialogue: ['Three sparks, one forge!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 18, level: 40 }, { creatureId: 37, level: 40 }, { creatureId: 19, level: 41 }] },
+      { id: 'volt_trainer6', name: 'Stormbind Talia', x: 12, y: 11, direction: 'up', dungeonId: 'volt',
+        dialogue: ['The dungeon judges everyone equally!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 38, level: 41 }, { creatureId: 19, level: 41 }, { creatureId: 39, level: 42 }] },
+      { id: 'volt_trainer7', name: 'Vanguard Orin', x: 18, y: 11, direction: 'up', dungeonId: 'volt',
+        dialogue: ['Almost to the Dungeon Master — almost!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 37, level: 42 }, { creatureId: 38, level: 42 }, { creatureId: 18, level: 43 }] },
+      { id: 'volt_dungeon_master', name: 'Dungeon Master Ozym', x: 12, y: 4, direction: 'down',
+        dungeonId: 'volt', isDungeonMaster: true, dungeonMasterRequires: 7,
+        dialogue: [
+          'So — you\'ve weathered both storms to reach me.',
+          'Beat all seven of my trainers in a single streak, and I am yours to challenge.',
+          'Let\'s see if you can withstand a real storm.',
+        ],
+        isTrainer: true,
+        trainerCreatures: [
+          { creatureId: 39, level: 48 }, { creatureId: 19, level: 47 },
+          { creatureId: 38, level: 46 }, { creatureId: 18, level: 49 },
+        ] },
+    ],
+    exits: [
+      { x: 11, y: 21, width: 1, height: 1, targetMap: 'voltspire', targetX: 24, targetY: 8 },
+      { x: 12, y: 21, width: 1, height: 1, targetMap: 'voltspire', targetX: 25, targetY: 8 },
+    ],
+    encounters: [], isIndoor: true, isCave: true, music: 'indoor',
+  },
+
+  natureCity: {
+    id: 'natureCity', name: 'Wildhaven', width: 32, height: 24,
+    tiles: NATURE_CITY_TILES,
+    forceDusk: true,
+    ambientLeaves: true,
+    npcs: [
+      {
+        id: 'nature_villager1', name: 'Canopy Keeper', x: 12, y: 10, direction: 'down', repeatable: true,
+        dialogue: [
+          'Welcome to Wildhaven — every home here grows from a living tree.',
+          'The Nature Lodge to the west has a nurse, a shopkeeper, and a Move Reminder.',
+        ],
+      },
+      {
+        id: 'nature_villager2', name: 'Root Warden', x: 20, y: 14, direction: 'up', repeatable: true,
+        dialogue: [
+          'You made it through the thicket maze — not everyone does on the first try.',
+          'That gate to the east is the Nature Dungeon. Seven trainers stronger than Voltspire\'s guard it.',
+        ],
+      },
+      {
+        id: 'nature_lodge_sign', name: 'Sign', x: 4, y: 8, direction: 'down', repeatable: true,
+        dialogue: [
+          '🏥 NATURE LODGE',
+          'Nurse Joy heals your party for FREE.',
+          'The Shopkeeper sells supplies, and the Move Reminder can restore forgotten moves.',
+        ],
+      },
+      {
+        id: 'nature_dungeon_sign', name: 'Sign', x: 28, y: 8, direction: 'down', repeatable: true,
+        dialogue: [
+          '🌿 NATURE DUNGEON',
+          'Defeat all 7 trainers in a single streak to face the Dungeon Master.',
+          'Leaving the dungeon resets your progress!',
+        ],
+      },
+      {
+        id: 'naturecity_sign_south', name: 'Sign', x: 16, y: 21, direction: 'down', repeatable: true,
+        dialogue: ['The road onward is still being charted.', '(Come back soon!)'],
+      },
+    ],
+    exits: [
+      { x: 15, y: 0, width: 1, height: 1, targetMap: 'stormThicket', targetX: thicketEntranceTile[0], targetY: STORM_THICKET_TILES.length - 2 },
+      { x: 16, y: 0, width: 1, height: 1, targetMap: 'stormThicket', targetX: thicketEntranceTile[0], targetY: STORM_THICKET_TILES.length - 2 },
+      { x: 7,  y: 7, width: 1, height: 1, targetMap: 'natureLodge', targetX: 6, targetY: 8 },
+      { x: 24, y: 7, width: 1, height: 1, targetMap: 'natureDungeon', targetX: 11, targetY: 20 },
+      { x: 25, y: 7, width: 1, height: 1, targetMap: 'natureDungeon', targetX: 12, targetY: 20 },
+    ],
+    encounters: [], isCity: true, music: 'town',
+  },
+
+  natureLodge: {
+    id: 'natureLodge', name: 'Nature Lodge', width: 14, height: 10,
+    tiles: NATURE_LODGE_TILES,
+    npcs: [
+      {
+        id: 'nature_nurse', name: 'Nurse Joy', x: 4, y: 3, direction: 'down',
+        isNurse: true,
+        dialogue: [
+          'Welcome to the Nature Lodge!',
+          'I\'ll heal your creatures back to full health!',
+          'Rest easy — the forest looks after its own.',
+        ],
+      },
+      {
+        id: 'nature_shopkeeper', name: 'Shopkeeper', x: 9, y: 3, direction: 'down',
+        isShop: true,
+        shopItems: [
+          { id: 1,  price: 200  },
+          { id: 2,  price: 600  },
+          { id: 3,  price: 1500 },
+          { id: 10, price: 100  },
+          { id: 11, price: 300  },
+          { id: 12, price: 800  },
+          { id: 30, price: 1000  },
+          { id: 31, price: 6000 },
+          { id: 50, price: 350  },
+          { id: 51, price: 700  },
+        ],
+        dialogue: ['Welcome! Everything here is grown, gathered, or good as new.'],
+      },
+      {
+        id: 'move_reminder', name: 'Move Reminder', x: 9, y: 6, direction: 'down',
+        dialogue: ['I can help your creatures remember forgotten moves.'],
+      },
+    ],
+    exits: [{ x: 6, y: 9, width: 1, height: 1, targetMap: 'natureCity', targetX: 7, targetY: 8 }],
+    encounters: [], isIndoor: true, music: 'indoor',
+  },
+
+  natureDungeon: {
+    id: 'natureDungeon', name: 'Nature Dungeon', width: 24, height: 22,
+    tiles: NATURE_DUNGEON_TILES,
+    npcs: [
+      { id: 'nature_trainer1', name: 'Vinewalker Talia', x: 5, y: 18, direction: 'up', dungeonId: 'nature',
+        dialogue: ['The roots run deep here — so does my resolve!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 20, level: 50 }, { creatureId: 21, level: 51 }] },
+      { id: 'nature_trainer2', name: 'Windshade Oz', x: 18, y: 18, direction: 'up', dungeonId: 'nature',
+        dialogue: ['Fernix rides the wind through these very trees!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 8, level: 51 }, { creatureId: 7, level: 52 }] },
+      { id: 'nature_trainer3', name: 'Mossbrook Nia', x: 5, y: 15, direction: 'up', dungeonId: 'nature',
+        dialogue: ['Even a forest needs a steady hand to tend it!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 9, level: 52 }, { creatureId: 20, level: 53 }] },
+      { id: 'nature_trainer4', name: 'Rootbound Kai', x: 18, y: 15, direction: 'up', dungeonId: 'nature',
+        dialogue: ['My roots reach deeper than you\'d think.'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 21, level: 53 }, { creatureId: 7, level: 54 }] },
+      { id: 'nature_trainer5', name: 'Stonepath Rui', x: 5, y: 11, direction: 'up', dungeonId: 'nature',
+        dialogue: ['Three growths, one unshakable root!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 8, level: 54 }, { creatureId: 9, level: 55 }, { creatureId: 20, level: 55 }] },
+      { id: 'nature_trainer6', name: 'Sparkgrove Leni', x: 12, y: 11, direction: 'up', dungeonId: 'nature',
+        dialogue: ['The dungeon judges everyone equally!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 21, level: 55 }, { creatureId: 7, level: 56 }, { creatureId: 8, level: 56 }] },
+      { id: 'nature_trainer7', name: 'Twilight Warden Sable', x: 18, y: 11, direction: 'up', dungeonId: 'nature',
+        dialogue: ['Almost to the Dungeon Master — almost!'],
+        isTrainer: true, trainerCreatures: [{ creatureId: 9, level: 56 }, { creatureId: 20, level: 57 }, { creatureId: 21, level: 57 }] },
+      { id: 'nature_dungeon_master', name: 'Dungeon Master Sylvaine', x: 12, y: 4, direction: 'down',
+        dungeonId: 'nature', isDungeonMaster: true, dungeonMasterRequires: 7,
+        dialogue: [
+          'So — you\'ve crossed two storms and a thicket maze to reach me.',
+          'Beat all seven of my trainers in a single streak, and I am yours to challenge.',
+          'The forest does not go easy on anyone.',
+        ],
+        isTrainer: true,
+        trainerCreatures: [
+          { creatureId: 9, level: 62 }, { creatureId: 21, level: 61 },
+          { creatureId: 8, level: 60 }, { creatureId: 20, level: 63 },
+        ] },
+    ],
+    exits: [
+      { x: 11, y: 21, width: 1, height: 1, targetMap: 'natureCity', targetX: 24, targetY: 8 },
+      { x: 12, y: 21, width: 1, height: 1, targetMap: 'natureCity', targetX: 25, targetY: 8 },
+    ],
+    encounters: [], isIndoor: true, isCave: true, music: 'indoor',
   },
 };
