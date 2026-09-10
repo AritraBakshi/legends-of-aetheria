@@ -51,25 +51,24 @@ const MT = TILE.MAPLE_TREE, AG = TILE.AUTUMN_GRASS;
 const OAK_TILES: number[][] = [
   [T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T],
   [T,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
-  [T,G,R,R,R,G,G,G,G,G,G,G,G,G,G,G,G,G,G,R,R,R,R,R,R,G,G,G,G,G,G,T],
-  [T,G,L,L,L,G,G,G,G,G,G,G,G,G,G,G,G,G,G,L,L,L,L,L,L,G,G,G,G,G,G,T],
-  [T,G,L,L,L,G,G,G,G,G,G,G,G,G,G,G,G,G,G,L,L,L,L,L,L,G,G,G,G,G,G,T],
-  [T,G,L,D,L,G,G,P,P,P,P,P,P,P,P,P,P,P,G,L,L,D,L,L,L,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,P,P,P,P,P,P,P,P,P,P,P,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
   [T,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
   [T,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
   [T,G,H,G,G,G,G,P,P,P,P,P,P,P,P,P,P,P,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
   [T,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
   [T,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
   [T,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,H,G,H,G,G,G,T],
-  [T,R,R,R,R,R,R,R,R,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
-  [T,L,L,L,L,L,L,L,L,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
-  [T,L,L,L,L,L,L,L,L,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
-  [T,L,L,L,L,L,L,L,L,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
-  [T,L,L,L,D,L,L,L,L,G,G,G,G,G,P,P,P,P,P,P,P,P,G,G,G,G,G,G,G,G,G,T],
-  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,FN,FN,FN,FN,G,G,G,T],
-  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,FN,H,H,FN,G,G,G,T],
-  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,FN,H,H,FN,G,G,G,T],
-  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,FN,FN,FN,FN,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,P,P,P,P,P,P,P,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,G,H,H,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,G,H,H,G,G,G,G,T],
+  [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,T],
   [T,G,G,G,G,G,G,G,G,G,G,G,G,P,G,G,G,G,G,G,P,G,G,G,G,G,G,G,G,G,G,T],
   [T,S,S,S,S,S,S,S,S,S,S,S,S,P,S,S,S,S,S,S,S,S,S,S,S,S,S,S,S,S,S,T],
   [T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T],
@@ -178,22 +177,14 @@ function makeEarthenholdTiles(): number[][] {
   ];
   for (const [x, y] of crystalSpots) if (grid[y][x] === K) grid[y][x] = CR;
 
-  // ── Earth Lodge building (nurse/shop/move reminder), west side ──
-  // Same construction as the Pokémon Center/Lab: 1 roof row + solid wall
-  // rows, with the door punched only into the bottom-most wall row. No
-  // "interior" tiles are ever placed here — this is an exterior facade only.
-  grid[2][3] = R; grid[2][4] = R; grid[2][5] = R; grid[2][6] = R; grid[2][7] = R; grid[2][8] = R;
-  for (let y = 3; y <= 4; y++) for (let x = 3; x <= 8; x++) grid[y][x] = L;
-  grid[5][3] = L; grid[5][4] = L; grid[5][5] = D; grid[5][6] = L; grid[5][7] = L; grid[5][8] = L;
+  // ── Earth Lodge building (nurse/shop/move reminder), west side — now a
+  // single whole-building sprite (see MapData.buildings) instead of
+  // assembled from repeated wall/roof/door tiles, so the ground here stays
+  // plain rocky-path; the building image is rendered as a second pass on
+  // top of it, same layering idea as the fence decorations.
 
-  // ── Grandiose Dungeon Gate, east side — a wide fortified archway ──
-  // Same solid-block construction, just bigger: 1 roof row + 6 solid wall
-  // rows + a bottom door row (wide double doors). The outer map border
-  // (row 0) is left untouched.
-  for (let x = 21; x <= 30; x++) grid[1][x] = R;
-  for (let y = 2; y <= 7; y++) for (let x = 22; x <= 29; x++) grid[y][x] = L;
-  for (let x = 22; x <= 29; x++) grid[8][x] = L;
-  grid[8][25] = D; grid[8][26] = D; // wide double-door entrance
+  // ── Dungeon Gate, east side — now a whole-building sprite (see
+  // MapData.buildings); ground stays plain rocky-path.
 
   return grid;
 }
@@ -343,9 +334,10 @@ const WATER_CAVE_TILES: number[][] = makeWaterCaveTiles();
 // A sea "moat" (2 tiles thick) wraps the island, then a sandy shoreline, then
 // the plaza itself: Water Lodge (nurse/shop/move reminder) to the west,
 // Water Dungeon Gate to the east — the same civic template as Earthenhold.
-function makeWaterCityTiles(): number[][] {
+function makeWaterCityTiles(): { grid: number[][]; decorations: { x: number; y: number; tile: number }[] } {
   const w = 26, h = 20;
   const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(SD));
+  const decorations: { x: number; y: number; tile: number }[] = [];
 
   // Outer sea moat, 2 tiles thick
   for (let t = 0; t < 2; t++) {
@@ -376,16 +368,11 @@ function makeWaterCityTiles(): number[][] {
   for (const [x, y] of kelpInCanal) grid[y][x] = SW;
   grid[13][13] = P; grid[13][14] = P; grid[14][13] = P; grid[14][14] = P; // bridge
 
-  // ── Water Lodge (nurse/shop/move reminder), west side — coral stonework ──
-  grid[3][4] = RW; grid[3][5] = RW; grid[3][6] = RW; grid[3][7] = RW; grid[3][8] = RW; grid[3][9] = RW;
-  for (let y = 4; y <= 5; y++) for (let x = 4; x <= 9; x++) grid[y][x] = LW;
-  grid[6][4] = LW; grid[6][5] = LW; grid[6][6] = D; grid[6][7] = LW; grid[6][8] = LW; grid[6][9] = LW;
+  // ── Water Lodge (nurse/shop/move reminder), west side — now a
+  // whole-building sprite (see MapData.buildings); ground stays plain sand.
 
-  // ── Water Dungeon Gate, east side — coral-and-stone archway ──
-  for (let x = 17; x <= w - 4; x++) grid[2][x] = RW;
-  for (let y = 3; y <= 8; y++) for (let x = 18; x <= w - 5; x++) grid[y][x] = LW;
-  for (let x = 18; x <= w - 5; x++) grid[9][x] = LW;
-  grid[9][19] = D; grid[9][20] = D;
+  // ── Dungeon Gate, east side — now a whole-building sprite (see
+  // MapData.buildings); ground stays plain sand.
 
   // Fishing pier reaching out into the west moat — walkable over water
   // without needing Surf, since it's a built structure, not open sea
@@ -413,15 +400,17 @@ function makeWaterCityTiles(): number[][] {
   // drawn for a fence running left-right and doesn't read as continuous
   // when stacked vertically. Rows 17-19 only (right where the water/dock
   // actually is) so this doesn't run into the existing Pearl Diver NPC at
-  // (19,16) or the shell decorations dotted along row 16.
+  // (19,16) or the shell decorations dotted along row 16. Rendered as
+  // decorations (not baked into the grid) so the real kelp/water underneath
+  // actually shows through the fence posts instead of a guessed background.
   for (let y = 17; y <= 19; y++) {
-    grid[y][5] = FV; grid[y][8] = FV;   // flanks the Storm Coast surf lane (x:6-7)
-    grid[y][19] = FV; grid[y][21] = FV; // flanks the Storm Thicket dock (x:20)
+    decorations.push({ x: 5, y, tile: FV }, { x: 8, y, tile: FV });   // flanks the Storm Coast surf lane (x:6-7)
+    decorations.push({ x: 19, y, tile: FV }, { x: 21, y, tile: FV }); // flanks the Storm Thicket dock (x:20)
   }
 
-  return grid;
+  return { grid, decorations };
 }
-const WATER_CITY_TILES: number[][] = makeWaterCityTiles();
+const { grid: WATER_CITY_TILES, decorations: WATER_CITY_DECORATIONS } = makeWaterCityTiles();
 
 // ─── WATER DUNGEON (24 × 22) — coral hall, single grand chamber ─────────────
 // Fills a small rectangular island centered on (cx, cy) — used to give NPCs
@@ -740,13 +729,11 @@ function makeVoltspireTiles(): number[][] {
   // here; it leads to a separate Nature City instead, still to be built.
   grid[0][8] = NF; grid[0][9] = NF;
 
-  // Volt Lodge — a building facade on the west side, door gap at its base
-  for (let y = 3; y <= 7; y++) for (let x = 4; x <= 10; x++) grid[y][x] = NW;
-  grid[7][7] = D; // lodge door
+  // Volt Lodge — now a whole-building sprite (see MapData.buildings);
+  // ground stays plain neon floor.
 
-  // Volt Dungeon gate — a building facade on the east side, door gap at its base
-  for (let y = 3; y <= 7; y++) for (let x = 21; x <= 27; x++) grid[y][x] = NW;
-  grid[7][24] = D; grid[7][25] = D; // dungeon double door
+  // Dungeon Gate, east side — now a whole-building sprite (see
+  // MapData.buildings); ground stays plain neon floor.
 
   // Streetlamps lighting the plaza — solid glowing props (see fx_lampglow
   // in OverworldScene for the actual light-bleed effect), placed clear of
@@ -790,9 +777,10 @@ const VOLT_DUNGEON_TILES: number[][] = makeVoltDungeonTiles();
 // treehouse architecture (wood-trunk walls, leafy canopy roofs) instead of
 // cut stone or neon panels, and forceDusk (see types.ts/OverworldScene) for
 // a warm golden-hour tint rather than pitch dark — evening, not midnight.
-function makeNatureCityTiles(): number[][] {
+function makeNatureCityTiles(): { grid: number[][]; decorations: { x: number; y: number; tile: number }[] } {
   const w = 32, h = 24;
   const grid: number[][] = Array.from({ length: h }, () => Array(w).fill(G));
+  const decorations: { x: number; y: number; tile: number }[] = [];
 
   // Border — thick forest ringing the city, same TREE border every outdoor
   // map uses, rather than architecture (the city is nestled IN the woods) —
@@ -807,15 +795,11 @@ function makeNatureCityTiles(): number[][] {
   grid[0][15] = P; grid[0][16] = P;
   for (let y = 1; y < h - 1; y++) { grid[y][15] = P; grid[y][16] = P; }
 
-  // Nature Lodge — a treehouse facade on the west side, door gap at its base
-  for (let x = 4; x <= 10; x++) grid[2][x] = THR;
-  for (let y = 3; y <= 7; y++) for (let x = 4; x <= 10; x++) grid[y][x] = THW;
-  grid[7][7] = D; // lodge door
+  // Nature Lodge — now a whole-building sprite (see MapData.buildings);
+  // ground stays plain grass.
 
-  // Nature Dungeon gate — a treehouse facade on the east side, door gap at its base
-  for (let x = 21; x <= 27; x++) grid[2][x] = THR;
-  for (let y = 3; y <= 7; y++) for (let x = 21; x <= 27; x++) grid[y][x] = THW;
-  grid[7][24] = D; grid[7][25] = D; // dungeon double door
+  // Dungeon Gate, east side — now a whole-building sprite (see
+  // MapData.buildings); ground stays plain grass.
 
   // Autumn-grass patches — orange-tinted ground with fallen-leaf litter,
   // breaking up the flat green so the plaza reads as "fall evening", not
@@ -834,18 +818,20 @@ function makeNatureCityTiles(): number[][] {
   for (const [x, y] of grassSpots) if (grid[y][x] === G) grid[y][x] = S;
 
   // A proper fenced flowerbed — a small planted bed ringed by fence, not
-  // just loose flowers scattered on open grass
-  for (let x = 9; x <= 13; x++) { grid[15][x] = FN; grid[17][x] = FN; }
-  grid[16][9] = FV; grid[16][13] = FV;
+  // just loose flowers scattered on open grass. Fences are decorations
+  // (rendered over the plain grass here, not baked into the grid) so the
+  // grass actually shows through around the fence posts.
+  for (let x = 9; x <= 13; x++) { decorations.push({ x, y: 15, tile: FN }, { x, y: 17, tile: FN }); }
+  decorations.push({ x: 9, y: 16, tile: FV }, { x: 13, y: 16, tile: FV });
   for (let x = 10; x <= 12; x++) grid[16][x] = H;
 
   // A few maple trees decorating the plaza itself, not just the border
   const plazaMaples: [number, number][] = [[14, 12], [17, 14], [3, 10], [28, 15]];
   for (const [x, y] of plazaMaples) if (grid[y]?.[x] === G || grid[y]?.[x] === S) grid[y][x] = MT;
 
-  return grid;
+  return { grid, decorations };
 }
-const NATURE_CITY_TILES: number[][] = makeNatureCityTiles();
+const { grid: NATURE_CITY_TILES, decorations: NATURE_CITY_DECORATIONS } = makeNatureCityTiles();
 
 // Nature Dungeon — open floor plan like the other three dungeons (not a
 // maze), so trainers scattered around it can never block the only way
@@ -969,6 +955,17 @@ export const MAPS: Record<string, MapData> = {
   oakwind: {
     id: 'oakwind', name: 'Oakwind Village', width: 32, height: 24,
     tiles: OAK_TILES,
+    decorations: [
+      { x: 24, y: 17, tile: FN }, { x: 25, y: 17, tile: FN }, { x: 26, y: 17, tile: FN }, { x: 27, y: 17, tile: FN },
+      { x: 24, y: 18, tile: FN }, { x: 27, y: 18, tile: FN },
+      { x: 24, y: 19, tile: FN }, { x: 27, y: 19, tile: FN },
+      { x: 24, y: 20, tile: FN }, { x: 25, y: 20, tile: FN }, { x: 26, y: 20, tile: FN }, { x: 27, y: 20, tile: FN },
+    ],
+    buildings: [
+      { x: 2, y: 2, texture: 'building_player_house', widthTiles: 3, heightTiles: 4, doors: [{ x: 3, y: 5 }] },
+      { x: 19, y: 2, texture: 'building_pokecenter', widthTiles: 6, heightTiles: 4, doors: [{ x: 21, y: 5 }] },
+      { x: 1, y: 12, texture: 'building_lab', widthTiles: 8, heightTiles: 5, doors: [{ x: 4, y: 16 }] },
+    ],
     npcs: [
       {
         id: 'npc1', name: 'Villager', x: 10, y: 8, direction: 'right', repeatable: true,
@@ -1083,6 +1080,16 @@ export const MAPS: Record<string, MapData> = {
   earthenhold: {
     id: 'earthenhold', name: 'Earthenhold', width: 32, height: 24,
     tiles: EARTHENHOLD_TILES,
+    buildings: [
+      { x: 3, y: 2, texture: 'building_earth_lodge', widthTiles: 6, heightTiles: 4, doors: [{ x: 5, y: 5 }] },
+      // Standardized dungeon-gate footprint (8×6) shared by all four
+      // regions now that there's no tile-grid size restriction — each one
+      // still looks nothing alike (rocky fortress here vs. coral temple,
+      // neon tower, living tree arch elsewhere), just at a consistent,
+      // properly grand scale instead of the old mismatched
+      // 8×8/4×8/7×5/7×6 footprints tile assembly forced them into.
+      { x: 22, y: 3, texture: 'building_earthen_gate', widthTiles: 8, heightTiles: 6, doors: [{ x: 25, y: 8 }, { x: 26, y: 8 }] },
+    ],
     npcs: [
       {
         id: 'earthen_villager1', name: 'Quarrier', x: 6, y: 14, direction: 'down', repeatable: true,
@@ -1121,6 +1128,14 @@ export const MAPS: Record<string, MapData> = {
         dialogue: ['You are not worthy of the path south yet.', 'Prove yourself against the Earthen Dungeon\'s master first.'],
       },
       {
+        // Two guards standing adjacent is unavoidable here — unlike
+        // Waveshore's fence-narrowed lanes, this road has no walls forcing
+        // single-file movement, so both (13,22) and (14,22) (the two cells
+        // directly above the border gap) must be blocked or the route
+        // isn't actually sealed. Fixed the label collision at the
+        // rendering level instead (see OverworldScene's name-tag wrapping)
+        // rather than repositioning, since repositioning either of these
+        // two specific cells reopens the route.
         id: 'earthenhold_gatekeeper2', name: 'Earthen Sentinel', x: 14, y: 22, direction: 'down', repeatable: true,
         gatekeeperRequires: 'earth_dungeon_master',
         dialogue: ['You are not worthy of the path south yet.', 'Prove yourself against the Earthen Dungeon\'s master first.'],
@@ -1317,6 +1332,11 @@ export const MAPS: Record<string, MapData> = {
   waterCity: {
     id: 'waterCity', name: 'Waveshore', width: 26, height: 20,
     tiles: WATER_CITY_TILES,
+    decorations: WATER_CITY_DECORATIONS,
+    buildings: [
+      { x: 4, y: 3, texture: 'building_water_lodge', widthTiles: 6, heightTiles: 4, doors: [{ x: 6, y: 6 }] },
+      { x: 16, y: 4, texture: 'building_water_gate', widthTiles: 8, heightTiles: 6, doors: [{ x: 19, y: 9 }, { x: 20, y: 9 }] },
+    ],
     npcs: [
       {
         id: 'water_villager1', name: 'Tidecaller', x: 6, y: 12, direction: 'down', repeatable: true,
@@ -1341,7 +1361,10 @@ export const MAPS: Record<string, MapData> = {
         ],
       },
       {
-        id: 'water_dungeon_sign', name: 'Sign', x: 22, y: 8, direction: 'down', repeatable: true,
+        // Moved from (22,8) — that fell inside the new standardized 8×6
+        // dungeon-gate building footprint (x:16-23, y:4-9) once the gate
+        // was converted from tiles to a whole-building sprite.
+        id: 'water_dungeon_sign', name: 'Sign', x: 22, y: 11, direction: 'down', repeatable: true,
         dialogue: [
           '🌊 WATER DUNGEON',
           'Defeat all of the trainers in a single streak to face the Dungeon Master.',
@@ -1660,6 +1683,10 @@ export const MAPS: Record<string, MapData> = {
     id: 'voltspire', name: 'Voltspire', width: 32, height: 24,
     tiles: VOLTSPIRE_TILES,
     forceNight: true,
+    buildings: [
+      { x: 4, y: 3, texture: 'building_volt_lodge', widthTiles: 7, heightTiles: 5, doors: [{ x: 7, y: 7 }] },
+      { x: 21, y: 2, texture: 'building_volt_gate', widthTiles: 8, heightTiles: 6, doors: [{ x: 24, y: 7 }, { x: 25, y: 7 }] },
+    ],
     npcs: [
       {
         id: 'volt_villager1', name: 'Lineworker', x: 12, y: 10, direction: 'down', repeatable: true,
@@ -1793,8 +1820,13 @@ export const MAPS: Record<string, MapData> = {
   natureCity: {
     id: 'natureCity', name: 'Wildhaven', width: 32, height: 24,
     tiles: NATURE_CITY_TILES,
+    decorations: NATURE_CITY_DECORATIONS,
     forceDusk: true,
     ambientLeaves: true,
+    buildings: [
+      { x: 4, y: 2, texture: 'building_nature_lodge', widthTiles: 7, heightTiles: 6, doors: [{ x: 7, y: 7 }] },
+      { x: 21, y: 2, texture: 'building_nature_gate', widthTiles: 8, heightTiles: 6, doors: [{ x: 24, y: 7 }, { x: 25, y: 7 }] },
+    ],
     npcs: [
       {
         id: 'nature_villager1', name: 'Canopy Keeper', x: 12, y: 10, direction: 'down', repeatable: true,

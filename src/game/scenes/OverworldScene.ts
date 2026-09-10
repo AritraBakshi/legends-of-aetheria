@@ -51,6 +51,8 @@ const LIGHTNING_MAX_DELAY_MS = 9000;
 export class OverworldScene extends Phaser.Scene {
   private mapData!: MapData;
   private tileLayer!: Phaser.GameObjects.Container;
+  private decorationSolidSet = new Set<string>();
+  private buildingSolidSet = new Set<string>();
   private playerSprite!: Phaser.GameObjects.Image;
   private playerShadow!: Phaser.GameObjects.Image;
   private isMoving = false;
@@ -139,6 +141,47 @@ export class OverworldScene extends Phaser.Scene {
         }
       }
     }
+
+    // Decorations (currently just fences) render as a second pass ON TOP
+    // of the base grid, in the same container so they still sort correctly
+    // with everything else drawn there — this is what lets a fence tile's
+    // art be mostly transparent and actually show the real ground
+    // underneath (grass, sand, water/kelp) instead of every fence baking
+    // in one guessed background color. Also populates decorationSolidSet
+    // so isCollidingAt treats these cells as solid.
+    this.decorationSolidSet.clear();
+    for (const deco of this.mapData.decorations ?? []) {
+      const texKey = TILE_TEXTURES[deco.tile] ?? 'tile_fence';
+      const worldX = deco.x * TILE_SIZE + TILE_SIZE / 2;
+      const worldY = deco.y * TILE_SIZE + TILE_SIZE / 2;
+      this.tileLayer.add(this.add.image(worldX, worldY, texKey));
+      this.decorationSolidSet.add(`${deco.x},${deco.y}`);
+    }
+
+    // Whole-building sprites — a single image spanning the building's full
+    // footprint, positioned by its top-left tile. Depth is fixed (below
+    // the player/NPCs, like trees) rather than y-sorted against the
+    // player — a real "walk in front of the tall part, behind the short
+    // part" effect would need proper depth-sorting by y-position, which
+    // this first pass doesn't attempt. Every footprint tile is solid
+    // EXCEPT door tiles, which must each match a real exits entry exactly
+    // (an array, not a single door, since several buildings — all four
+    // Dungeon Gates — have a 2-wide double door).
+    this.buildingSolidSet.clear();
+    for (const b of this.mapData.buildings ?? []) {
+      const worldX = b.x * TILE_SIZE;
+      const worldY = b.y * TILE_SIZE;
+      this.tileLayer.add(
+        this.add.image(worldX, worldY, b.texture).setOrigin(0, 0).setDisplaySize(b.widthTiles * TILE_SIZE, b.heightTiles * TILE_SIZE),
+      );
+      const isDoor = (tx: number, ty: number) => b.doors.some(d => d.x === tx && d.y === ty);
+      for (let ty = b.y; ty < b.y + b.heightTiles; ty++) {
+        for (let tx = b.x; tx < b.x + b.widthTiles; tx++) {
+          if (isDoor(tx, ty)) continue; // doors stay walkable
+          this.buildingSolidSet.add(`${tx},${ty}`);
+        }
+      }
+    }
   }
 
   private createPlayer() {
@@ -191,7 +234,12 @@ export class OverworldScene extends Phaser.Scene {
         });
       }
 
-      // Name / rematch label
+      // Name / rematch label. word-wrapped to a tight max width so long
+      // names stack onto multiple lines instead of expanding sideways far
+      // enough to overlap an adjacent NPC's label — two guards standing on
+      // neighboring tiles (unavoidable at some chokepoints, see the
+      // Earthenhold/Waveshore gatekeepers) previously produced unreadable
+      // merged text like "Earth Earthen Sentinel".
       const rematchCount = npc.isTrainer ? gameState.getCounter(`rematch_${npc.id}`) : 0;
       const labelText = rematchCount > 0 ? `${npc.name} ×${rematchCount}` : npc.name;
       const labelColor = npc.isTrainer
@@ -202,6 +250,7 @@ export class OverworldScene extends Phaser.Scene {
       this.add.text(nx, ny - 42, labelText, {
         fontSize: '11px', fontFamily: 'monospace', color: labelColor,
         backgroundColor: '#00000088', padding: { x: 3, y: 1 },
+        align: 'center', wordWrap: { width: 62, useAdvancedWrap: true },
       }).setOrigin(0.5, 1).setDepth(20);
 
       // Store with the sprite as a graphics placeholder (type compat) — use image directly
@@ -438,7 +487,7 @@ export class OverworldScene extends Phaser.Scene {
     this.walkTimer += delta;
     if (this.walkTimer > 200) {
       this.walkTimer = 0;
-      this.walkFrame = this.isMoving ? (this.walkFrame + 1) % 3 : 0;
+      this.walkFrame = this.isMoving ? (this.walkFrame + 1) % 4 : 0;
       this.playerSprite?.setTexture(`player_${this.spritePrefix()}${this.playerDir}_${this.walkFrame}`);
     }
   }
@@ -771,6 +820,8 @@ export class OverworldScene extends Phaser.Scene {
   private isCollidingAt(x: number, y: number): boolean {
     const { width, height, tiles } = this.mapData;
     if (x < 0 || y < 0 || x >= width || y >= height) return true;
+    if (this.decorationSolidSet.has(`${x},${y}`)) return true;
+    if (this.buildingSolidSet.has(`${x},${y}`)) return true;
     const tile = tiles[y]?.[x];
     if ((tile === TILE.WATER || tile === TILE.SEAWEED) && gameState.getFlag('hasSurf')) return false;
     return TILE_SOLID.has(tile);

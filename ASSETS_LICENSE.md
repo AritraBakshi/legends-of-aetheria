@@ -41,6 +41,29 @@ discuss terms.
 
 ## Third-party assets
 
-_(None currently. If third-party or licensed assets are added in the
-future — e.g. fonts, sound packs — they will be listed here with their
-respective licenses.)_
+Player and NPC character sprites use pieces from the [Liberated Pixel Cup
+(LPC)](https://opengameart.org/content/lpc-collection) asset collection —
+a set of open, commonly-reused RPG sprites. LPC pieces are contributed by
+many different artists under a mix of licenses (CC0, CC-BY 3.0/4.0,
+CC-BY-SA 3.0, GPL 3.0), so **each individual piece must be credited to its
+specific author with its specific license** — a single blanket "LPC"
+credit is not sufficient. **CC-BY-SA pieces additionally require that any
+derivative art (recolors, edits, combined sheets) built from them stay
+under CC-BY-SA too** — that applies to the art itself, not the rest of
+this repository's code.
+
+<!--
+  TODO: fill in one entry per asset actually used, e.g.:
+
+  - **[Asset name]** by [Author name] — [License, e.g. CC-BY-SA 3.0]
+    Source: [URL where it was obtained]
+    Used for: [e.g. "player character walk cycle"]
+
+  Check the specific page/commit each piece came from for its exact
+  license and required attribution wording — LPC bundles pieces from many
+  contributors with different terms, so this can't be assumed uniform.
+-->
+
+_(Pending — populate this list with the exact sprites used, their
+authors, and their individual licenses before distributing/deploying a
+build that includes them.)_

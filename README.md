@@ -109,6 +109,14 @@ This is currently a solo/personal project. Bug reports and suggestions are
 welcome via Issues, but please note the licensing terms above before
 submitting art or code contributions.
 
+## Credits
+
+Most art (creature sprites, tiles, UI) is original, made specifically for
+this project. Player and NPC character sprites use assets from the
+[Liberated Pixel Cup (LPC)](https://opengameart.org/content/lpc-collection)
+project — see [`ASSETS_LICENSE.md`](./ASSETS_LICENSE.md#third-party-assets)
+for the specific pieces used and their individual licenses/authors.
+
 ## License
 
 Proprietary — see [`LICENSE.md`](./LICENSE.md) and

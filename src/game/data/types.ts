@@ -221,4 +221,28 @@ export interface MapData {
    * since "leaves" has no in-battle weather equivalent.
    */
   ambientLeaves?: boolean;
+  /**
+   * Solid decorative props (currently just fences) rendered as a SECOND
+   * pass on top of the base `tiles` grid, instead of replacing the ground
+   * tile at that cell outright. This is what lets a fence actually blend
+   * with whatever ground is really there (grass, sand, water/kelp) instead
+   * of every fence tile baking in one guessed background color. Treated as
+   * solid for collision the same way TILE_SOLID entries are — see
+   * OverworldScene.isCollidingAt.
+   */
+  decorations?: { x: number; y: number; tile: number }[];
+  /**
+   * Whole-building sprites — a single large image spanning multiple tiles
+   * (e.g. a 6×4-tile Lodge facade), instead of assembling a building out
+   * of repeated wall/roof/door tiles. Lets a building have real asymmetry
+   * (chimneys, uneven rooflines, windows in specific spots) that a rigid
+   * per-tile grid can't express. `doors` are absolute map tile coordinates
+   * (not relative to x/y) and each one MUST exactly match an existing
+   * `exits` entry's (x,y) — an array (not a single door) because several
+   * buildings (all four Dungeon Gates) have a 2-wide double door. Every
+   * other tile in the building's footprint is solid, but door tiles are
+   * deliberately left open so the normal exit-trigger system keeps
+   * working unmodified. See OverworldScene.buildingSolidSet / isCollidingAt.
+   */
+  buildings?: { x: number; y: number; texture: string; widthTiles: number; heightTiles: number; doors: { x: number; y: number }[] }[];
 }
