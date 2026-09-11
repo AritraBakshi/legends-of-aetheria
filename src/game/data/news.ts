@@ -37,6 +37,25 @@ export const NEWS: NewsEntry[] = [
     ],
   },
   {
+    title: 'A Fresh Coat of Paint',
+    date: 'Update',
+    bullets: [
+      'Homes, Lodges, and every region\'s Dungeon Gate have been redrawn as real standalone buildings, each with its own distinct look — from Earthenhold\'s jagged rocky fortress to Wildhaven\'s living tree archway.',
+      'Grass, sand, water, and dozens of other terrain types across the world have been redrawn with much more depth and texture.',
+      'Fences now show the real ground beneath them instead of a flat backdrop.',
+      'Your character — and everyone else you meet — now moves with a smoother, more natural walk cycle.',
+    ],
+  },
+  {
+    title: 'Storms on the Horizon: Voltspire and Wildhaven',
+    date: 'Major Update',
+    bullets: [
+      'Two new regions wait beyond Waveshore, and the road forks — Storm Coast opens once you\'ve proven yourself against Waveshore\'s Dungeon Master, leading to the Electric-type region of Voltspire, crackling under a stormy night sky.',
+      'The other path hides a real maze, Storm Thicket, where trainers and secrets lurk in every dead end — clear Voltspire\'s Dungeon Master to unlock the way through, and beyond it, the Nature-type region of Wildhaven, glowing in a warm autumn dusk with drifting leaves.',
+      'Both Voltspire and Wildhaven have their own Lodge, Dungeon, and Dungeon Master to challenge.',
+    ],
+  },
+  {
     title: 'The Tides Rise: Waveshore',
     date: 'Major Update',
     bullets: [
